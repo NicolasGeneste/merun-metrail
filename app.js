@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.8.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.8.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.8.0';
+const APP_VERSION = 'v4.8.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -323,7 +323,7 @@ const riegel = (sec, km, to=42.195) => sec * Math.pow(to/km, 1.06);   /* Riegel,
 
 /* ---------------- etat ---------------- */
 const BASE = {src:"export Strava du 08/10/2026, 12 mois", kmWeek:18, wAct:37, wTot:53, z12:44};
-let S = { name:'Nicolas', vc:12.5, fcmax:196, beeps:true, schema:400, done:{}, ppgDone:[], acts:[], vcHist:[{date:'2025-03-13',vc:12.5,src:'SV2 test CHU'}],
+let S = { name:'Nicolas', vc:12.5, fcmax:187, beeps:true, schema:481, done:{}, ppgDone:[], acts:[], vcHist:[{date:'2025-03-13',vc:12.5,src:'SV2 test CHU'}],
   races:[], joined:{}, fb:{}, adj:[], mobDone:[], wk:{},
   goal:{name:'Marathon de Paris', target:3*3600+35*60, startSec:3*3600+59*60+33},
   perfs:[
@@ -339,6 +339,8 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
+      /* v4.8.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
     if (old){ if (old.races) S.races = old.races; if (old.cv && old.cv.vc) S.vc = old.cv.vc; if (old.soundEnabled === false) S.beeps = false; }
@@ -1538,7 +1540,7 @@ function Montre(){
       <ol style="font-size:13px;color:var(--body);padding-left:18px;margin-top:8px">
         ${step(1,'Compte gratuit sur intervals.icu, puis relier Garmin Connect dans les réglages.')}
         ${step(2,'Cocher « Upload planned workouts » et « Download activities » pour Garmin.')}
-        ${step(3,'Régler ta FC max (196) dans Intervals.icu : les séances en dénivelé visent un % de FC max.')}
+        ${step(3,'Régler dans Intervals.icu la même FC max que dans MeRun (Réglages, '+S.fcmax+') : les séances en dénivelé visent un % de FC max.')}
         ${step(4,'Settings > Developer Settings : générer la clé API et noter l\'athlete ID (i123456).')}
         ${step(5,'Netlify > Site configuration > Environment variables : INTERVALS_API_KEY, INTERVALS_ATHLETE_ID, MERUN_CODE.')}
         ${step(6,'Déployer avec Netlify CLI (le glisser-déposer ne publie pas la fonction), puis saisir MERUN_CODE ci-dessus.')}</ol>
