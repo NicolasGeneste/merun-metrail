@@ -1,25 +1,14 @@
-MeRun-MeTrail v4.6.0 : envoi des seances sur la montre via Intervals.icu
+MeRun-MeTrail : deploiement (depuis v4.6.0)
 
-IMPORTANT : le glisser-deposer Netlify ne publie PAS les Netlify Functions.
-A partir de cette version, deployer avec Netlify CLI (une seule fois a installer).
+Le site Netlify thirdmarathon est relie a ce depot GitHub : chaque envoi sur la branche main redeploie
+le site ET la fonction Intervals.icu (netlify/functions/intervals.mjs). Ne plus utiliser le glisser-deposer :
+il ne publie pas la fonction.
 
-1. Installer Node.js LTS (https://nodejs.org), puis dans PowerShell :
-     npm install -g netlify-cli
-     netlify login
-2. Dans le dossier dezippe (celui qui contient index.html et netlify.toml) :
-     cd C:\chemin\vers\MeRun-MeTrail_v4.6.0
-     netlify link            (choisir le site existant thirdmarathon)
-3. Variables d'environnement (tapees dans ton terminal, jamais dans une conversation) :
-     netlify env:set INTERVALS_API_KEY  "ta_cle_api"
-     netlify env:set INTERVALS_ATHLETE_ID "i123456"
-     netlify env:set MERUN_CODE "un_code_a_toi"
-   (ou Netlify > Site configuration > Environment variables)
-4. Deployer :
-     netlify deploy --prod
-   netlify.toml indique le dossier publie (.) et celui des fonctions (netlify/functions).
-5. Sur le telephone : Plus > Montre · Intervals.icu > saisir MERUN_CODE > Enregistrer et tester.
+Variables Netlify (Site configuration > Environment variables) :
+  INTERVALS_API_KEY     cle API Intervals.icu (Settings > Developer Settings)
+  INTERVALS_ATHLETE_ID  identifiant athlete, ex. i123456
+  MERUN_CODE            code d'acces a saisir une fois dans l'appli (Plus > Montre)
+Apres un changement de variable : Deploys > Trigger deploy (les fonctions lisent les valeurs du dernier deploiement).
 
-Mises a jour suivantes : remplacer les fichiers puis relancer "netlify deploy --prod".
-
-Reglages Intervals.icu (sans code) : relier Garmin Connect, cocher "Upload planned workouts"
-et "Download activities", regler la FC max a 196.
+Reglages Intervals.icu : relier Garmin Connect, cocher "Upload planned workouts" et "Download activities",
+regler la FC max a 196.
