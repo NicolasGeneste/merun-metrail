@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<meta name="description" content="Plan Marathon de Paris 2027 : 26 semaines, plan adaptatif selon ton ressenti et ton mood, objectif, profil coureur, export Garmin .fit, PPG chronométrée.">
+<title>MeRun-MeTrail · L'ascension</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="stylesheet" href="./fonts/fonts.css">
+<style>
+:root{
+  --bg:#0a0e14;--surface:#151b26;--surface-2:#1f2733;--surface-3:#2a3342;--nav:#1a212d;
+  --text:#f5f1ea;--muted:#9aa3b2;--body:#d6d2cb;
+  --orange:#ff6b35;--teal:#00d4b8;--pink:#ff4d94;--amber:#f0a020;
+  --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#05070b;color:var(--text);font-family:Inter,system-ui,sans-serif;font-weight:600}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+button:focus-visible,[role=button]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+#app{max-width:480px;height:100%;margin:0 auto;position:relative;overflow:hidden;background:var(--bg);padding-top:var(--safe-t)}
+.scroll{position:absolute;inset:var(--safe-t) 0 0 0;overflow-y:auto;padding-bottom:calc(110px + var(--safe-b));scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.anton{font-family:Anton,Impact,sans-serif;font-weight:400;letter-spacing:.005em}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:10.5px}
+.muted{color:var(--muted)}
+.pad{padding:14px 16px 20px;display:flex;flex-direction:column;gap:12px}
+.h1{font-size:34px;line-height:1}
+.card{background:var(--surface);border-radius:22px;padding:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pill{border-radius:999px;padding:12px 18px;font-weight:800;font-size:14px}
+.chip{background:rgba(10,14,20,.14);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:800}
+.row{display:flex;align-items:center;gap:12px}
+.bar{height:10px;border-radius:999px;background:rgba(10,14,20,.2);overflow:hidden}.bar>i{display:block;height:100%;background:var(--bg);border-radius:999px}
+/* nav */
+nav{position:absolute;left:16px;right:16px;bottom:calc(26px + var(--safe-b));height:66px;border-radius:33px;background:var(--nav);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:space-around;padding:0 8px;z-index:20}
+nav{padding:0 6px!important}
+nav button{height:50px;min-width:44px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);padding:0 6px}
+nav button.on{background:var(--teal);color:var(--bg);padding:0 14px}
+nav button span{display:none;font-size:13px;font-weight:800}nav button.on span{display:inline}
+nav svg,.ico{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* overlay */
+.overlay{position:absolute;inset:0;background:var(--bg);z-index:30;animation:up .25s ease-out}
+@keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@keyframes hxp{0%,100%{opacity:1}50%{opacity:.6}}
+.hxcur{animation:hxp 1.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.overlay{animation:none}.pin{transition:none!important}.hxcur{animation:none}}
+.back{width:44px;height:44px;border-radius:50%;background:var(--surface);display:grid;place-items:center;flex:none}
+.hero-back{background:rgba(10,14,20,.18)}
+/* toast */
+#toast{position:absolute;left:50%;bottom:calc(106px + var(--safe-b));transform:translateX(-50%);background:var(--text);color:var(--bg);
+  padding:10px 18px;border-radius:22px;font-size:13.5px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:50;max-width:calc(100% - 32px);width:max-content;text-align:center;display:none}
+/* home hero */
+.hero{position:relative;height:430px;overflow:hidden}
+.hero svg.land{position:absolute;left:0;top:0;width:100%;height:430px}
+.flag{position:absolute;background:var(--text);color:var(--bg);border-radius:8px;padding:3px 7px;font-family:'JetBrains Mono',monospace;
+  font-size:9.5px;font-weight:800;letter-spacing:.04em;line-height:1.25;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.tag{position:absolute;background:var(--text);color:var(--bg);font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:999px;white-space:nowrap}
+/* plan */
+.hist{height:130px;display:flex;align-items:flex-end;gap:3px;position:relative}
+.hist button{flex:1;border-radius:4px 4px 0 0;position:relative;min-width:0;min-height:6px}
+.hist .fl{position:absolute;top:-12px;left:50%;transform:translateX(-50%);width:8px;height:7px;background:var(--pink);clip-path:polygon(0 0,100% 50%,0 100%)}
+.sess{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:22px;padding:12px 14px;text-align:left;width:100%}
+.dot{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--bg);font-size:18px;font-weight:800}
+.ppgline{display:flex;align-items:center;gap:12px;padding:6px 14px;font-size:13px;color:var(--muted)}
+/* detail */
+.band{height:40px;border-radius:10px;display:flex;align-items:center;padding:0 10px;font-size:11.5px;font-weight:800;color:var(--bg);overflow:hidden;white-space:nowrap}
+.steps li{padding:8px 0;border-bottom:1px solid var(--surface-2);display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.steps{list-style:none;margin:0;padding:0}
+.rpe{width:52px;height:52px;border-radius:50%;background:var(--surface-2);font-family:Anton;font-size:22px;display:grid;place-items:center}
+.rpe.on{background:var(--orange);color:var(--bg)}
+/* ppg */
+.seg{display:flex;background:var(--surface);border-radius:999px;padding:4px;gap:4px}
+.seg button{flex:1;border-radius:999px;padding:9px 6px;font-size:12.5px;font-weight:800;color:var(--muted)}
+.seg button.on{background:var(--pink);color:var(--bg)}
+.seg.teal button.on{background:var(--teal)}
+.ring{width:250px;height:250px;border-radius:50%;margin:6px auto;display:grid;place-items:center;position:relative}
+.ring::after{content:'';position:absolute;inset:16px;border-radius:50%;background:var(--bg)}
+.ring>div{position:relative;z-index:1;text-align:center}
+.ctl{display:flex;justify-content:center;align-items:center;gap:22px}
+.ctl button{width:56px;height:56px;border-radius:50%;background:var(--surface);display:grid;place-items:center}
+.ctl .main{width:80px;height:80px;background:var(--orange);color:var(--bg)}
+.ex{display:flex;gap:14px;padding:12px 14px;background:var(--surface);border-radius:20px;border:2px solid transparent}
+.ex.cur{border-color:var(--orange)}.ex.past{opacity:.5}
+/* tiles & forms */
+.tile{height:132px;border-radius:26px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;color:var(--bg)}
+.field{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--surface-2);gap:12px}
+.field input{background:var(--surface-2);border:0;border-radius:12px;color:var(--text);font:inherit;padding:8px 10px;width:110px;text-align:right}
+.tgl{width:52px;height:30px;border-radius:999px;background:var(--surface-3);position:relative;flex:none}
+.tgl::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--text);transition:left .2s}
+.tgl.on{background:var(--teal)}.tgl.on::after{left:25px}
+.zl{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--surface-2)}
+.zc{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;color:var(--bg);font-weight:800;font-size:12px}
+p{margin:0;line-height:1.45}
+/* v4 */
+.ppgline{width:100%;text-align:left}
+.scard{display:block;width:100%;text-align:left;background:var(--surface);border-radius:22px;padding:14px 16px}
+.kdot{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;flex:none;color:var(--bg)}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;letter-spacing:.02em;white-space:nowrap}
+.badge.key{background:#e8ff59;color:var(--bg);text-transform:uppercase;font-size:10px;letter-spacing:.06em}
+.bolts{display:inline-flex;gap:1px;vertical-align:middle}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.opt{background:var(--surface);border-radius:18px;padding:17px;font-weight:800;font-size:15px;border:2px solid transparent;text-align:center}
+.opt.on{border-color:var(--teal);background:var(--surface-2)}
+.chipsel{background:var(--surface);border-radius:999px;padding:11px 15px;font-size:13.5px;font-weight:700;border:2px solid transparent;min-height:44px}
+.chipsel.on{border-color:var(--text);background:var(--surface-2)}
+textarea,select{background:var(--surface);border:0;border-radius:14px;color:var(--text);font:inherit;font-weight:500;padding:12px 14px;width:100%}
+.field select{width:auto;background:var(--surface-2);padding:8px 10px}
+.field label{flex:1}
+.goalcard{position:relative;overflow:hidden;border-radius:28px;background:var(--surface-2);padding:16px;display:flex;flex-direction:column}
+.axc{text-align:left;background:var(--surface);border-radius:18px;padding:14px;border:1.5px solid transparent;min-height:118px}
+.axc.on{background:var(--surface-2)}
+.lg{display:inline-block;width:9px;height:9px;border-radius:3px}
+button:disabled{cursor:default}
+
+/* Filet de securite : badge "Powered by Netlify" injecte par l'hebergeur (iframe #nl-badge-frame).
+   Le reglage officiel reste : Project configuration > General > Powered by Netlify badge > Off. */
+#nl-badge-frame{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="scroll" id="screen"></div>
+  <div id="layer"></div>
+  <nav id="nav"></nav>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fitInput" accept=".fit" multiple hidden>
+</div>
+<script src="./data/plan.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

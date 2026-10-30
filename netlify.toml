@@ -1,0 +1,9 @@
+# MeRun-MeTrail : site statique + une Netlify Function (intermediaire Intervals.icu)
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
