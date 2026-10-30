@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.7.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.8.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.7.1';
+const APP_VERSION = 'v4.8.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1764,3 +1764,31 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   let reloaded = false; const had = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded){ reloaded = true; location.reload(); } });
 });
+
+/* ---------------- Glisser entre les onglets (v4.8) ----------------
+   Geste horizontal net sur l'ecran principal : gauche = onglet suivant, droite = onglet precedent.
+   Ignore : couches ouvertes (detail, reglages...), champs de saisie, zones defilant horizontalement,
+   departs a moins de 28 px des bords (geste "retour" d'Android), gestes lents ou trop verticaux. */
+(() => {
+  const scr = $('#screen'); let t0 = null;
+  const blocked = el => { for (let e = el; e && e !== scr; e = e.parentElement){
+      if (/^(INPUT|SELECT|TEXTAREA|VIDEO|CANVAS)$/.test(e.tagName) || e.dataset.noswipe != null) return true;
+      if (e.scrollWidth > e.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(e).overflowX)) return true; }
+    return false; };
+  scr.addEventListener('touchstart', e => {
+    t0 = null; if (e.touches.length !== 1 || V.layers.length) return;
+    const p = e.touches[0]; if (p.clientX < 28 || p.clientX > innerWidth - 28 || blocked(e.target)) return;
+    t0 = {x:p.clientX, y:p.clientY, t:Date.now()};
+  }, {passive:true});
+  scr.addEventListener('touchend', e => {
+    if (!t0) return; const p = e.changedTouches[0], dx = p.clientX - t0.x, dy = p.clientY - t0.y, dt = Date.now() - t0.t; t0 = null;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < 1.8*Math.abs(dy) || dt > 700) return;
+    const i = TABS.findIndex(x => x[0]===V.tab), j = i + (dx < 0 ? 1 : -1);
+    if (j < 0 || j >= TABS.length) return;
+    go(TABS[j][0]);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      scr.animate([{transform:`translateX(${dx<0?40:-40}px)`, opacity:.4}, {transform:'none', opacity:1}], {duration:180, easing:'ease-out'});
+    }
+  }, {passive:true});
+  scr.addEventListener('touchcancel', () => { t0 = null; }, {passive:true});
+})();
