@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.6.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.7.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.6.1';
+const APP_VERSION = 'v4.7.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -324,7 +324,7 @@ const riegel = (sec, km, to=42.195) => sec * Math.pow(to/km, 1.06);   /* Riegel,
 /* ---------------- etat ---------------- */
 const BASE = {src:"export Strava du 08/10/2026, 12 mois", kmWeek:18, wAct:37, wTot:53, z12:44};
 let S = { name:'Nicolas', vc:12.5, fcmax:196, beeps:true, schema:400, done:{}, ppgDone:[], acts:[], vcHist:[{date:'2025-03-13',vc:12.5,src:'SV2 test CHU'}],
-  races:[], joined:{}, fb:{}, adj:[], mobDone:[],
+  races:[], joined:{}, fb:{}, adj:[], mobDone:[], wk:{},
   goal:{name:'Marathon de Paris', target:3*3600+35*60, startSec:3*3600+59*60+33},
   perfs:[
     {id:'p1',date:'2025-09-19',km:5,sec:24*60+7,l:'5 km',src:"segment d'entraînement (Strava)"},
@@ -433,14 +433,15 @@ function realWeek(w){
 function curWeek(){ const t=todayIso(); const w = PLAN.find(w => t >= w.start && t <= weekEnd(w)); return w || (t < PLAN[0].start ? PLAN[0] : PLAN[PLAN.length-1]); }
 function nextSession(){ const t=todayIso(); return ALL.find(s => s.date >= t && !isDone(s)) || ALL.find(s => !isDone(s)) || ALL[ALL.length-1]; }
 const doneKm = () => OFF.reduce((a,w)=>a+realWeek(w).km, 0);
-const TOTAL_KM = OFF.reduce((a,w)=>a+w.sessions.reduce((x,s)=>x+s.km,0),0);
+let TOTAL_KM = OFF.reduce((a,w)=>a+w.sessions.reduce((x,s)=>x+s.km,0),0);
 const MILES = [
   {k:'start',l:'Départ',date:'2026-10-26',sub:'lundi 26 oct.',c:C.pink,frac:0},
   {k:'10k',l:'Camp 1',date:'2026-11-29',sub:'10 km · 29 nov.',c:C.orange},
   {k:'semi',l:'Camp 2',date:'2027-03-07',sub:'semi · 7 mars',c:C.amber},
   {k:'mara',l:'Sommet',date:'2027-04-04',sub:'marathon · 4 avr.',c:C.teal},
 ];
-(function(){ let cum=0; const cut={'10k':8,'semi':22,'mara':26}; OFF.forEach(w=>{ cum+=w.km; for(const m of MILES) if(cut[m.k]===w.num) m.frac=cum/TOTAL_KM; }); })();
+function calcMiles(){ let cum=0; const cut={'10k':8,'semi':22,'mara':26}; OFF.forEach(w=>{ cum+=w.km; for(const m of MILES) if(cut[m.k]===w.num) m.frac=cum/TOTAL_KM; }); }
+calcMiles();
 /* Seances passees sans retour (7 derniers jours) */
 const pending = () => { const t=todayIso(), lim=addDays(t,-7); return ALL.filter(s => s.date < t && s.date >= lim && !isDone(s) && s.week > PRE); };
 const MOOD = ['À plat','Fatigué','Correct','Bien','Au top'];
@@ -466,6 +467,7 @@ function Home(){
       <span class="dot" style="background:${C.orange}">${ico('check',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.orange};display:block">Retour attendu</span>
       <span style="font-weight:700;display:block">${esc(pend[pend.length-1].title)} · ${DOW[pend[pend.length-1].day]} ${shortDate(pend[pend.length-1].date)}</span><span class="muted" style="font-size:12.5px">Comment ça s'est passé ? Ton retour ajuste le plan.</span></span>${ico('next')}</button>` : ''}
     ${adj ? adjBanner(adj) : ''}
+    ${(() => { const nw = PLAN[curWeek().num], dw = new Date().getDay(); return nw && wkOpen(nw) && (dw===6||dw===0) && !S.wk[nw.num] ? `<button class="card row" style="text-align:left;border:2px solid ${C.teal}" onclick="wkOpenSet(${nw.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.teal};display:block">Semaine prochaine</span><span style="font-weight:700;display:block">${wLab(nw)} · ${fmtN(nw.km)} km prévus</span><span class="muted" style="font-size:12.5px">Une sortie en plus ou en moins ? Plus ou moins d'intensité ?</span></span>${ico('next')}</button>` : ''; })()}
     <button onclick="openS('${n.code}')" style="background:${k.c};color:${C.bg};border-radius:28px;padding:20px;display:flex;flex-direction:column;gap:10px;text-align:left">
       <div class="mono" style="font-size:11px">Prochaine · ${DOW[n.day]} ${shortDate(n.date)}${isKey(n)?' · séance clé':''}</div>
       <div class="anton" style="font-size:32px;line-height:1.05">${esc(n.title)}</div>
@@ -519,6 +521,7 @@ function Plan(){
         <button class="pill" style="background:${C.surface2};font-size:13px;padding:10px" onclick="openLayer('acts')">Activités</button></div>
     </div>
     ${adj ? adjBanner(adj) : ''}
+    ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
     <div style="display:flex;flex-direction:column;gap:10px">${items.trim()||`<div class="card"><p style="color:var(--body)">${esc(w.title)}. Aucune séance programmée.</p></div>`}</div>
     ${ivCode() && w.sessions.some(ivSendable) ? `<button class="pill" style="background:${C.orange};color:${C.bg};padding:15px" ${V.ivBusy?'disabled':''} onclick="ivSendWeek(${w.num})">${V.ivBusy==='push'?'Envoi…':'Envoyer la semaine sur ma montre'}${w.sessions.some(s=>ivSendable(s)&&ivStatus(s)==='stale')?' (plan ajusté)':''}</button>` : ''}
     <div class="row" style="gap:8px">
@@ -1371,7 +1374,7 @@ const LAYER = {
       <button class="pill" style="background:${C.text};color:${C.bg}" onclick="exportAll()">Exporter tout le plan (.zip .fit)</button>
       <button class="pill" style="background:${C.surface}" onclick="backup()">Sauvegarder mes données (.json)</button>
       <button class="pill" style="background:${C.surface}" onclick="$('#restoreIn').click()">Restaurer une sauvegarde</button><input type="file" id="restoreIn" accept=".json" hidden onchange="restore(this)">
-      <button class="pill" style="color:${C.pink}" onclick="if(confirm('Effacer séances validées, retours, allègements, PPG et activités importées ?')){S.done={};S.ppgDone=[];S.mobDone=[];S.acts=[];S.fb={};S.adj=[];if(S.iv){S.iv.sent={};S.iv.lastPull=null;}save();render();toast('↺ Progression réinitialisée')}">Réinitialiser la progression</button></div>`; },
+      <button class="pill" style="color:${C.pink}" onclick="if(confirm('Effacer séances validées, retours, allègements, PPG et activités importées ?')){S.done={};S.ppgDone=[];S.mobDone=[];S.acts=[];S.fb={};S.adj=[];S.wk={};applyWeekPrefs();if(S.iv){S.iv.sent={};S.iv.lastPull=null;}save();render();toast('↺ Progression réinitialisée')}">Réinitialiser la progression</button></div>`; },
 };
 window.setVC = (v, src) => { const x=parseFloat(String(v).replace(',','.')); if(!(x>6&&x<25)){ toast('VC invalide'); return false; }
   S.vc=Math.round(x*10)/10; S.vcHist=S.vcHist.filter(h=>h.date!==todayIso()); S.vcHist.push({date:todayIso(),vc:S.vc,src}); save(); render(); toast('✓ VC '+fmtN(S.vc)+' km/h, allures recalculées'); return true; };
@@ -1549,7 +1552,162 @@ function ivDetailBlock(s){
     <div class="row" style="gap:8px"><button class="pill" style="flex:1;background:${stt==='ok'?C.surface2:C.orange};color:${stt==='ok'?C.text:C.bg}" ${b?'disabled':''} onclick="ivSendOne('${s.code}')">${b==='push'?'Envoi…':stt?'Renvoyer':'Envoyer sur ma montre'}</button>
     ${stt?`<button class="pill" style="background:${C.surface2}" ${b?'disabled':''} onclick="ivRemove('${s.code}')">Retirer</button>`:''}</div></div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre});
+
+/* ---------------- Ma semaine (v4.7) ----------------
+   Choix hebdomadaires du coureur, appliques au plan de base :
+     sorties : -1 (retire un footing), plan, +1 (ajoute un footing EF)
+     intensite : moins (semaine a 85 %, via S.adj), normal, plus (+1 repetition sur la seance de qualite,
+                 a defaut +10 % sur la sortie longue ; jamais les deux)
+   Garde-fous (regles MeRun) :
+     - volume de la semaine <= max(volume prevu, 110 % du volume de la semaine precedente)
+     - sortie ajoutee : EF de 25 a 40 min, jamais la veille d'une seance cle, sur un jour libre a venir
+     - semaines de course ou de test : ni sortie en plus, ni intensite en plus
+     - seances deja faites ou passees jamais modifiees
+   Les decisions (quelle seance renforcee, retiree, jour ajoute) sont figees a l'enregistrement dans S.wk,
+   pour qu'une seance renforcee reste renforcee une fois faite. */
+const WDAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const BASE_W = PLAN.map(w => ({sessions: w.sessions.slice()}));
+const r1 = x => Math.round(x*10)/10;
+const sumKm = ss => ss.reduce((a,s)=>a+s.km, 0);
+const baseKmOf = w => r1(sumKm(BASE_W[w.num-1].sessions));
+const efKmPerMin = bloc => { const r = paceRange('EF', bloc, S.vc); return 60/((r[0]+r[1])/2); };
+const padW = n => String(n).padStart(2,'0');
+const wkEditable = s => s.date >= todayIso() && !isDone(s);
+const wkOpen = w => !w.pre && weekEnd(w) >= todayIso();
+
+/* Seance renforcee : +1 repetition sur le bloc principal, ou sortie longue +10 % */
+function wkPlusOf(s){
+  if (s.kind === 'q'){
+    const i = s.steps.findIndex(x => x.rep && x.steps.some(y => y.k==='active' && !['EF','EFD','RECUP','OPEN'].includes(y.z)));
+    if (i < 0) return null;
+    const steps = s.steps.map((x,j) => j===i ? {...x, rep:x.rep+1} : x);
+    const d0 = flatSteps(s.steps, s.bloc, S.vc).reduce((a,x)=>a+x.sec,0), d1 = flatSteps(steps, s.bloc, S.vc).reduce((a,x)=>a+x.sec,0);
+    const n = s.steps[i].rep, re = new RegExp('^'+n+' ×'), bump = t => re.test(t) ? t.replace(re, (n+1)+' ×') : t+' · +1 rép.';
+    return {...s, steps, km:r1(s.km*d1/d0), title:bump(s.title), name:bump(s.name)+' (+1 répétition)', mod:'plus'};
+  }
+  if (s.kind === 'sl'){
+    let done = false;
+    const steps = s.steps.map(x => { if (done || x.rep || x.k!=='active' || !x.t) return x; done = true; return {...x, t:Math.round(x.t*1.1/60)*60}; });
+    if (!done) return null;
+    return {...s, steps, km:r1(s.km*1.1), title:s.title+' · +10 %', name:s.name+' (+10 %)', mod:'plus'};
+  }
+  return null;
+}
+function wkExtra(w, day, min){
+  return {code:`S${padW(w.num)}_${day}_ajout`, week:w.num, bloc:w.bloc, date:addDays(w.start, WDAYS.indexOf(day)), day, kind:'foot',
+    name:`EF ${min} min (sortie ajoutée)`, title:`EF ${min} min`, km:r1(min*efKmPerMin(w.bloc)),
+    note:'Sortie ajoutée à ta demande : vraiment facile, FC sous 145.', steps:[{n:`EF ${min} min`,k:'active',z:'EF',t:min*60}], extra:true};
+}
+/* Construit la semaine a partir des decisions enregistrees (aucune dependance a la date du jour) */
+function wkBuild(w, p){
+  let ss = BASE_W[w.num-1].sessions.slice();
+  if (p && p.plus){ ss = ss.map(s => s.code===p.plus ? (wkPlusOf(s) || s) : s); }
+  if (p && p.drop){ ss = ss.filter(s => s.code !== p.drop); }
+  if (p && p.add){ ss.push(wkExtra(w, p.add.day, p.add.min)); }
+  return ss.sort((a,b) => a.date.localeCompare(b.date));
+}
+/* Previsualise un choix {d,i} : decide quoi modifier et explique ce qui est refuse */
+function wkPreview(w, c){
+  const i0 = w.num-1, base = BASE_W[i0].sessions, prevKm = i0>0 ? PLAN[i0-1].km : 0, bKm = baseKmOf(w);
+  const cap = Math.max(bKm, prevKm*1.10), hasRace = base.some(s => frozen(s));
+  const prevBase = i0>0 ? r1(sumKm(BASE_W[i0-1].sessions)) : 0;
+  const dec = {d:c.d, i:c.i}, why = {};
+  const jump = prevKm && bKm > prevKm*1.10, jumpTxt = jump ? `Le plan monte déjà de ${Math.round((bKm/prevKm-1)*100)} % par rapport à la semaine précédente : rien de plus cette semaine.` : '';
+  let ss = base.slice();
+  if (c.i === 1){
+    if (hasRace) why.i = 'Semaine de course ou de test : pas d\'intensité en plus.';
+    else {
+      const q = ss.find(s => s.kind==='q' && wkEditable(s) && wkPlusOf(s)), sl = ss.find(s => s.kind==='sl' && wkEditable(s) && wkPlusOf(s));
+      const t = q || sl;
+      if (!t) why.i = 'Aucune séance de qualité ou sortie longue à venir cette semaine.';
+      else { const m = wkPlusOf(t); if (sumKm(ss) - t.km + m.km > cap + 0.05) why.i = jump ? jumpTxt : `Refusé : la semaine dépasserait ${fmtN(r1(cap))} km (+10 % sur la semaine précédente).`;
+        else { dec.plus = t.code; ss = ss.map(s => s.code===t.code ? m : s); } }
+    }
+  }
+  if (c.d === -1){
+    const foots = ss.filter(s => s.kind==='foot' && wkEditable(s));
+    if (!foots.length) why.d = 'Aucun footing à venir à retirer cette semaine.';
+    else {
+      const nextKey = s => { const n = ss.find(x => x.date === addDays(s.date,1)); return n && isKey(n); };
+      const t = foots.find(nextKey) || foots[foots.length-1];
+      dec.drop = t.code; ss = ss.filter(s => s.code !== t.code);
+    }
+  }
+  if (c.d === 1){
+    if (hasRace) why.d = 'Semaine de course ou de test : pas de sortie en plus.';
+    else {
+      const t = todayIso(), used = new Set(ss.map(s => s.day));
+      const all = BASE_W[i0].sessions, nxt = PLAN[i0+1] ? BASE_W[i0+1].sessions : [];
+      const keyOn = date => [...all, ...nxt].some(s => s.date===date && isKey(s));
+      const day = ['Jeu','Lun','Sam','Mar','Mer','Ven'].find(d => { const dt = addDays(w.start, WDAYS.indexOf(d)); return !used.has(d) && dt >= t && !keyOn(addDays(dt,1)); });
+      const room = cap - sumKm(ss), kpm = efKmPerMin(w.bloc), min = Math.min(40, Math.floor(room/kpm/5)*5);
+      if (!day) why.d = 'Pas de jour libre à venir qui ne soit pas la veille d\'une séance clé.';
+      else if (min < 25) why.d = jump ? jumpTxt : `Pas assez de marge sous ${fmtN(r1(cap))} km (+10 % sur la semaine précédente) pour un footing de 25 min.`;
+      else { dec.add = {day, min}; ss.push(wkExtra(w, day, min)); ss.sort((a,b)=>a.date.localeCompare(b.date)); }
+    }
+  }
+  return {dec, why, ss, km:r1(sumKm(ss)), bKm, prevKm:r1(prevKm), cap:r1(cap), recup: prevBase && bKm < prevBase*0.85};
+}
+/* Applique toutes les semaines dans l'ordre (le plafond depend de la semaine precedente) */
+function applyWeekPrefs(){
+  S.wk = S.wk || {};
+  PLAN.forEach((w,i) => { w.sessions = w.pre ? BASE_W[i].sessions.slice() : wkBuild(w, S.wk[w.num]); w.km = r1(sumKm(w.sessions)); });
+  ALL.length = 0; ALL.push(...PLAN.flatMap(w => w.sessions));
+  TOTAL_KM = OFF.reduce((a,w)=>a+w.km, 0); calcMiles();
+}
+const wkSummary = w => { const p = (S.wk||{})[w.num]; if (!p) return '';
+  return [p.d===1&&p.add?'+1 sortie':p.d===-1&&p.drop?'-1 sortie':'', p.i===1&&p.plus?'intensité +':p.i===-1?'semaine allégée':''].filter(Boolean).join(' · '); };
+
+window.wkOpenSet = num => { const p = (S.wk||{})[num] || {}; V.wkc = {d:p.d||0, i:p.i||0}; openLayer('wkset', {week:num}); };
+window.wkPick = (k, v) => { V.wkc[k] = v; render(); };
+window.wkSave = num => {
+  const w = PLAN.find(x => x.num===num);
+  /* la previsualisation part du plan de base de la semaine et du volume deja resolu de la semaine precedente */
+  const pv = wkPreview(w, V.wkc), dec = pv.dec, before = new Set(w.sessions.map(s=>s.code));
+  S.wk = S.wk || {}; delete S.wk[num];
+  if (dec.d || dec.i) S.wk[num] = {...dec, at:new Date().toISOString()};
+  S.adj = S.adj.filter(a => a.id !== 'wk-'+num);
+  if (dec.i === -1){ const from = todayIso() > w.start ? todayIso() : w.start; S.adj.push({id:'wk-'+num, from, to:weekEnd(w), f:0.85, why:'Ton choix : semaine plus légère'}); }
+  applyWeekPrefs(); save(); if (V.layers.length) closeLayer(); else render();
+  const gone = [...before].filter(c => !ALL.some(s => s.code===c));
+  toast('✓ Semaine '+wNo(w)+' ajustée · '+fmtN(w.km)+' km');
+  wkSyncWatch(w, gone);
+};
+/* Montre : retire les seances supprimees deja envoyees ; si la semaine etait deja sur la montre, renvoie tout */
+function wkSyncWatch(w, gone){
+  if (!ivCode()) return;
+  const st = ivState(), ids = gone.map(c => st.sent[c] && st.sent[c].id).filter(Boolean);
+  const wasSent = w.sessions.some(s => st.sent[s.code]) || ids.length;
+  ivRun('push', async () => {
+    if (ids.length){ await ivCall('delete', {ids}); gone.forEach(c => delete st.sent[c]); save(); }
+    if (wasSent){ const n = await ivPush(w.sessions, true); if (n) toast(`✓ Montre mise à jour : semaine ${wNo(w)}`); }
+  });
+}
+
+function WkSet(l){
+  const w = PLAN.find(x => x.num===l.week); if (!w || !V.wkc) return '';
+  const pv = wkPreview(w, V.wkc);
+  const seg = (k, opts) => `<div class="seg teal">${opts.map(([v,lab])=>`<button class="${V.wkc[k]===v?'on':''}" onclick="wkPick('${k}',${v})">${lab}</button>`).join('')}</div>`;
+  const nb = BASE_W[w.num-1].sessions.length;
+  const delta = pv.prevKm ? Math.round((pv.km/pv.prevKm-1)*100) : null;
+  const tag = s => s.extra ? `<span class="badge" style="background:rgba(0,212,184,.16);color:${C.teal}">ajoutée</span>` : s.mod==='plus' ? `<span class="badge" style="background:rgba(255,107,53,.16);color:${C.orange}">renforcée</span>` : '';
+  const dropped = BASE_W[w.num-1].sessions.find(s => s.code===pv.dec.drop);
+  const warn = (t) => `<p style="font-size:12.5px;color:${C.amber};margin-top:8px">${t}</p>`;
+  return `<div class="pad">${head('Ma semaine', wLab(w)+' · '+shortDate(w.start)+' → '+shortDate(weekEnd(w)))}
+    <div class="card"><div class="mono muted">Sorties</div><div style="margin-top:10px">${seg('d', [[-1,'−1'],[0,'Plan ('+nb+')'],[1,'+1']])}</div>
+      ${pv.why.d ? warn(pv.why.d) : V.wkc.d===1 ? `<p class="muted" style="font-size:12.5px;margin-top:8px">Footing EF facile, jamais la veille d'une séance clé.</p>` : V.wkc.d===-1&&dropped ? `<p class="muted" style="font-size:12.5px;margin-top:8px">Retire : ${esc(dropped.title)} (${DOW[dropped.day]}).</p>` : ''}</div>
+    <div class="card"><div class="mono muted">Intensité</div><div style="margin-top:10px">${seg('i', [[-1,'Moins'],[0,'Normal'],[1,'Plus']])}</div>
+      ${pv.why.i ? warn(pv.why.i) : V.wkc.i===1 ? `<p class="muted" style="font-size:12.5px;margin-top:8px">Une seule séance renforcée : +1 répétition sur la qualité, ou +10 % sur la sortie longue. Les footings ne bougent pas.</p>` : V.wkc.i===-1 ? `<p class="muted" style="font-size:12.5px;margin-top:8px">Durées et répétitions à 85 %, tests et courses inchangés. Annulable depuis le bandeau du plan.</p>` : ''}</div>
+    ${pv.recup && (V.wkc.d===1||V.wkc.i===1) ? `<div class="card" style="border:2px solid ${C.amber}"><div style="font-size:13px">Semaine de récupération prévue (${fmtN(pv.bKm)} km contre ${fmtN(r1(sumKm(BASE_W[w.num-2].sessions)))} la semaine d'avant) : en ajouter va contre le plan. À faire seulement si tu es vraiment frais.</div></div>` : ''}
+    <div class="card"><div class="row" style="justify-content:space-between"><div class="mono muted">Résultat</div><div class="anton" style="font-size:24px">${fmtN(pv.km)} km</div></div>
+      <div class="muted" style="font-size:12px;margin-top:2px">Prévu ${fmtN(pv.bKm)} km · semaine précédente ${fmtN(pv.prevKm)} km${delta!==null?` · ${delta>=0?'+':''}${delta} %`:''} · plafond ${fmtN(pv.cap)} km</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${pv.ss.map(s=>`<div class="row" style="justify-content:space-between;gap:8px;font-size:13.5px"><span style="min-width:0"><b>${DOW[s.day]}</b> ${esc(s.title)} ${tag(s)}</span><span class="muted" style="flex:none">${fmtN(s.km)} km</span></div>`).join('')}
+        ${dropped?`<div class="row" style="justify-content:space-between;font-size:13.5px;opacity:.5"><s><b>${DOW[dropped.day]}</b> ${esc(dropped.title)}</s><span>retirée</span></div>`:''}</div></div>
+    <button class="pill" style="background:${C.orange};color:${C.bg};padding:16px" onclick="wkSave(${w.num})">Enregistrer${ivCode()?' et mettre la montre à jour':''}</button>
+    <p class="muted" style="font-size:11.5px">Règles MeRun : la semaine ne dépasse jamais son volume prévu ou +10 % sur la semaine précédente (le plus grand des deux). Une hausse de plus de 30 % en deux semaines a été associée à davantage de blessures chez des coureurs débutants (Nielsen et al., JOSPT 2014). Tes retours de séance peuvent toujours alléger la semaine ensuite.</p>
+  </div>`;
+}
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
@@ -1589,6 +1747,7 @@ $('#fitInput').addEventListener('change', async e => {
 
 /* ---------------- demarrage ---------------- */
 load();
+applyWeekPrefs();
 history.replaceState({l:0}, '');
 $('#nav').addEventListener('click', e => { const b=e.target.closest('button[data-tab]'); if (b) go(b.dataset.tab); });
 const qp = new URLSearchParams(location.search).get('page'); if (TABS.some(t=>t[0]===qp)) V.tab = qp;
