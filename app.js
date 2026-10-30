@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.8.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.8.2 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.8.1';
+const APP_VERSION = 'v4.8.2';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.8.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.8.2 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -826,6 +826,13 @@ const ROUT = {
     ['Fente bras levés',2,'30 s / côté',30,5,"Grande fente, genou arrière au sol, bras tendus au-dessus de la tête. Serre les fessiers et avance le bassin.",'Psoas, flancs','actif',1],
     ['Table inversée',1,'45 s',45,0,"Assis, mains derrière toi. Monte le bassin en serrant les fessiers, redescends lentement.",'Épaules, fessiers','actif',0],
     ['Ouverture thoracique',2,'30 s / côté',30,5,"À quatre pattes, une main derrière la tête. Ouvre le coude vers le plafond en suivant du regard, puis referme.",'Dos, épaules','actif',1]]},
+  M5:{mob:true,n:'Avant de dormir',sub:'Chaque soir · ~8 min · lent, au sol, sans forcer',ex:[
+    ['Chat-vache',1,'1 min',60,0,"À quatre pattes, très lentement : enroule le dos en expirant, creuse-le en inspirant. Calque le mouvement sur la respiration.",'Dos','actif',0],
+    ['Papillon',1,'1 min 15',75,0,"Assis ou allongé sur le dos, plantes des pieds l'une contre l'autre. Laisse les genoux descendre sans pousser.",'Adducteurs','passif',0],
+    ['Fessier en « 4 » contre le mur',2,'45 s / côté',45,5,"Allongé, un pied à plat contre le mur, cheville de l'autre jambe posée sur ce genou. Rapproche doucement le bassin du mur.",'Fessiers, hanches','passif',1],
+    ['Ischios assis, une jambe pliée',2,'40 s / côté',40,5,"Une jambe tendue, plante de l'autre pied contre la cuisse. Dos long, penche-toi sans tirer.",'Ischio-jambiers, mollets','passif',1],
+    ['Torsion allongée',2,'45 s / côté',45,5,"Sur le côté, hanche et genou du dessus pliés à 90°, genou tenu au sol. Ouvre l'autre bras et laisse le dos tourner en expirant.",'Dos, pectoraux','passif',1],
+    ['Prière (dorsaux)',1,'1 min 15',75,0,"À genoux, bras tendus devant, front posé, fesses vers les talons. Respiration lente, expiration plus longue que l'inspiration.",'Dorsaux, épaules','passif',0]]},
 };
 /* v4.5 : demo de chaque mouvement (pages video de kines : Physitrack, The Prehab Guys, Rehab Hero ;
    recherche YouTube quand aucune page n'a ete trouvee) + videos perso stockees en local (IndexedDB, jamais envoyees). */
