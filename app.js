@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.7.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.7.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.7.0';
+const APP_VERSION = 'v4.7.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -545,7 +545,8 @@ function sessCard(s, i, n){
       <span style="flex:1;min-width:0"><span class="row" style="gap:8px;flex-wrap:wrap">${isKey(s)?`<span class="badge key">Séance clé</span>`:''}<span class="muted" style="font-size:12px">Séance ${i}/${n} · ${DOW[s.day]} ${shortDate(s.date)}</span></span>
         <span style="display:block;font-size:16.5px;font-weight:800;margin-top:4px">${esc(s.title)}</span></span>
       ${ico('next',18)}</div>
-    <div class="grid3" style="margin-top:12px">${st('Durée',`<span class="anton" style="font-size:20px">${fmtDur(sessDur(s)).replace(' min','')}</span><span class="muted" style="font-size:11px">${sessDur(s)>=3600?'':' min'}</span>`)}${st('Distance',`<span class="anton" style="font-size:20px">${fmtN(kmOf(s))}</span><span class="muted" style="font-size:11px"> km</span>`)}${st('Difficulté',bolts(diffOf(s)))}</div>
+    ${(()=>{ const a = isDone(s) && actOf(s.code), dur = a && a.dur ? a.dur : sessDur(s), km = a && a.km ? a.km : kmOf(s);
+      return `<div class="grid3" style="margin-top:12px">${st(a&&a.dur?'Durée réelle':'Durée',`<span class="anton" style="font-size:20px">${fmtDur(dur).replace(' min','')}</span><span class="muted" style="font-size:11px">${dur>=3600?'':' min'}</span>`)}${st(a&&a.km?'Distance réelle':'Distance',`<span class="anton" style="font-size:20px">${fmtN(km)}</span><span class="muted" style="font-size:11px"> km</span>`)}`; })()}${st('Difficulté',bolts(diffOf(s)))}</div>
     ${(()=>{ const d = s.name.trim()!==s.title.trim() ? s.name : (s.note||''); return d?`<p class="clamp" style="margin-top:10px;font-size:13px;color:var(--body);font-weight:500">${esc(d)}</p>`:''; })()}
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">${tag}${f<1&&!frozen(s)?`<span class="badge" style="background:rgba(240,160,32,.16);color:${C.amber}">Allégée -${Math.round((1-f)*100)} %</span>`:''}${fb&&fb.mood?`<span class="badge" style="background:${C.surface2};color:${C.body}">Mood ${fb.mood}/5</span>`:''}</div>
   </button>`;
@@ -562,19 +563,23 @@ function Detail({code}){
   const s = ALL.find(x=>x.code===code); const k=KIND[s.kind]; const steps=stepsOf(s); const f=flatSteps(steps,s.bloc,S.vc); const tot=f.reduce((a,x)=>a+x.sec,0)||1;
   const wu=f.filter(x=>x.k==='warmup').reduce((a,x)=>a+x.sec,0), cd=f.filter(x=>x.k==='cooldown').reduce((a,x)=>a+x.sec,0), core=tot-wu-cd;
   const mz = mainZone(s); const {f:fa, a} = adjFactor(s);
-  const bands = [[wu,'Échauf.','EF'],[core,'Corps',mz],[cd,'Retour','RECUP']].filter(b=>b[0]>0);
+  const bands = [[wu,'Échauf.','EF'],[core,'Séance',mz],[cd,'Retour','RECUP']].filter(b=>b[0]>0);
   const lines=[]; for (const st of steps){
     if (st.rep){ lines.push(`<li><b>${st.rep} ×</b><span class="muted">${st.steps.map(x=>esc(x.n)+(paceLabel(x.z,s.bloc,S.vc)?' @ '+paceLabel(x.z,s.bloc,S.vc):'')).join(' / ')}</span></li>`); }
     else lines.push(`<li><span>${esc(st.n)}${st.t&&adjFactor(s).f<1&&!frozen(s)&&st.k==='active'?' ('+fmtDur(st.t)+')':''}</span><span class="muted">${st.z==='OPEN'?'libre':st.z==='EFD'?'FC &lt; 145':paceLabel(st.z,s.bloc,S.vc)+' /km'}</span></li>`);
   }
-  const fb = S.fb[code], act = actOf(code);
+  const fb = S.fb[code], act = actOf(code), real = isDone(s) && act && act.km;
+  const planCells = [['KM',fmtN(kmOf(s))],['DURÉE',fmtDur(tot)],mz==='EFD'?['FC MAX','145']:['MIN/KM',mz==='OPEN'?'libre':(paceLabel(mz,s.bloc,S.vc)||'-')]];
+  const cells = real ? [['KM',fmtN(act.km)],['DURÉE',act.dur?fmtHMS(act.dur):'-'],act.dur?['MIN/KM',fmtPace(Math.round(act.dur/act.km))]:['FC MOY',act.hr||'-']] : planCells;
   return `<div class="pad">
     <div style="background:${k.c};color:${C.bg};border-radius:30px;padding:16px 18px 20px">
       <div class="row" style="justify-content:space-between"><button class="back hero-back" onclick="closeLayer()" aria-label="Retour">${ico('back')}</button>
         <span class="mono" style="font-size:11px">S${String(s.week).padStart(2,'0')} · ${DOW[s.day]} ${shortDate(s.date)}</span></div>
       <div class="row" style="margin-top:14px;gap:8px">${isKey(s)?`<span class="badge" style="background:${C.bg};color:${k.c}">Séance clé</span>`:''}<span style="font-weight:800;font-size:13px">${k.l}</span></div>
       <div class="anton" style="font-size:40px;line-height:1.02;margin-top:6px">${esc(s.title)}</div>
-      <div class="grid3" style="margin-top:14px">${[['KM',fmtN(kmOf(s))],['DURÉE',fmtDur(tot)],mz==='EFD'?['FC MAX','145']:['MIN/KM',mz==='OPEN'?'libre':(paceLabel(mz,s.bloc,S.vc)||'-')]].map(([x,y])=>`<div><div class="mono" style="font-size:9.5px;opacity:.75">${x}</div><div class="anton" style="font-size:${String(y).length>6?20:28}px">${y}</div></div>`).join('')}</div>
+      ${real?`<div class="mono" style="font-size:10px;margin-top:12px">Réalisé${act.hr?' · FC moy '+act.hr:''}</div>`:''}
+      <div class="grid3" style="margin-top:${real?6:14}px">${cells.map(([x,y])=>`<div><div class="mono" style="font-size:9.5px;opacity:.75">${x}</div><div class="anton" style="font-size:${String(y).length>6?20:28}px">${y}</div></div>`).join('')}</div>
+      ${real?`<div style="font-size:12.5px;margin-top:8px;opacity:.8">Prévu : ${planCells.map(c=>c[1]+(c[0]==='KM'?' km':c[0]==='MIN/KM'&&c[1]!=='libre'?' /km':'')).join(' · ')}</div>`:''}
       <div class="row" style="margin-top:10px;gap:8px"><span class="mono" style="font-size:9.5px;opacity:.75">Difficulté</span>${bolts(diffOf(s), C.bg)}</div>
     </div>
     ${fa<1&&!frozen(s)?`<div class="card" style="border:2px solid ${C.amber}"><div class="mono" style="color:${C.amber}">Séance allégée · -${Math.round((1-fa)*100)} %</div><p class="muted" style="font-size:12.5px;margin-top:4px">${esc(a.why)}. Prévu à l'origine : ${s.km} km.</p></div>`:''}
