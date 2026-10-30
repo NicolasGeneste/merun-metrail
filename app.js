@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.6.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.6.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.6.0';
+const APP_VERSION = 'v4.6.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1299,12 +1299,18 @@ function Plus(){
 }
 /* Defis : objectifs derives du plan lui-meme (km et PPG planifies), pas de cibles arbitraires */
 function challenges(){
-  const t=todayIso(), m=t.slice(0,7), mName=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][+m.slice(5,7)-1];
-  const inM = ALL.filter(s=>s.date.startsWith(m)), w=curWeek();
-  const blocS = ALL.filter(s=>s.bloc===w.bloc), ppgM = PLAN.flatMap(x=>x.ppg).filter(p=>p.date.startsWith(m));
+  /* v4.6.1 : uniquement le plan officiel (pre-saison exclue). Si le mois en cours compte moins de 3 seances officielles
+     (mois de demarrage ou de fin), le defi porte sur le mois suivant. */
+  const MN=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const offS = ALL.filter(s=>s.week>PRE), offP = PLAN.filter(x=>!x.pre).flatMap(x=>x.ppg), w=curWeek();
+  let m=todayIso().slice(0,7);
+  if (offS.filter(s=>s.date.startsWith(m)).length < 3){ const d=d8(m+'-01'); d.setMonth(d.getMonth()+1); m=iso(d).slice(0,7); }
+  const mName=MN[+m.slice(5,7)-1];
+  const inM = offS.filter(s=>s.date.startsWith(m));
+  const blocS = offS.filter(s=>s.bloc===w.bloc), ppgM = offP.filter(p=>p.date.startsWith(m));
   const list = [];
   if (inM.length) list.push({id:'km-'+m,t:`${mName} : ${Math.round(inM.reduce((a,s)=>a+s.km,0))} km`,d:'Courir tout le volume planifié du mois.',v:inM.filter(isDone).reduce((a,s)=>a+s.km,0),goal:inM.reduce((a,s)=>a+s.km,0),u:'km',end:inM[inM.length-1].date,c:C.pink});
-  list.push({id:'zero-'+w.bloc,t:`Zéro trou, bloc ${w.bloc}`,d:`Valider toutes les séances du bloc ${BLOC[w.bloc].n}.`,v:blocS.filter(isDone).length,goal:blocS.length,u:'séances',end:blocS[blocS.length-1].date,c:C.orange});
+  if (blocS.length) list.push({id:'zero-'+w.bloc,t:`Zéro trou, bloc ${w.bloc}`,d:`Valider toutes les séances du bloc ${BLOC[w.bloc].n}.`,v:blocS.filter(isDone).length,goal:blocS.length,u:'séances',end:blocS[blocS.length-1].date,c:C.orange});
   if (ppgM.length) list.push({id:'ppg-'+m,t:`PPG 2×/sem, ${mName.toLowerCase()}`,d:'Tenir les deux PPG hebdomadaires du plan.',v:S.ppgDone.filter(x=>x.startsWith(m)).length,goal:ppgM.length,u:'PPG',end:ppgM[ppgM.length-1].date,c:C.teal});
   return list;
 }

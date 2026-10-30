@@ -1,7 +1,7 @@
 /* MeRun-MeTrail - service worker
    Strategie : cache-first sur la coquille de l'appli (tout est local).
    Les donnees d'entrainement vivent dans localStorage. */
-const CACHE = 'merun-v4.6.0';
+const CACHE = 'merun-v4.6.1';
 const SHELL = ['./','./index.html','./app.js','./data/plan.js','./manifest.webmanifest','./vendor/jszip.min.js','./fonts/fonts.css',
   './icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/maskable-192.png','./icons/maskable-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
