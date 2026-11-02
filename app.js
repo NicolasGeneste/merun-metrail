@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.8 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.9 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.8';
+const APP_VERSION = 'v4.9.9';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.8 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.9 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.8 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.9 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1858,7 +1858,8 @@ function Hist(){
   const mLab = m => MONTHS[+m.slice(5,7)-1]+' '+m.slice(0,4);
   /* meilleurs segments : 3 par distance */
   const segs = Object.keys(HD).map(k => ({k, list: h.acts.filter(a=>a.best&&a.best[k]).map(a=>({a, sec:a.best[k], key:a.id+'|'+k})).sort((x,y)=>x.sec-y.sec).slice(0,3)})).filter(x=>x.list.length);
-  const years = {}; for (const a of h.acts){ const y=a.date.slice(0,4); years[y]=years[y]||{n:0,km:0,long:null}; years[y].n++; years[y].km+=a.km; if(!years[y].long||a.km>years[y].long.km) years[y].long=a; }
+  /* v4.9.9 : toutes les sorties connues (historique importe + sorties recuperees ensuite par Intervals.icu ou .fit) */
+  const years = {}; for (const a of allRuns().filter(x => !h.from || x.date >= h.from)){ const y=a.date.slice(0,4); years[y]=years[y]||{n:0,km:0,long:null}; years[y].n++; years[y].km+=a.km; if(!years[y].long||a.km>years[y].long.km) years[y].long=a; }
   return `<div class="pad">${head('Mon historique', 'Sorties course à pied : export Garmin et Intervals.icu')}
     <div class="card"><div class="mono muted">Importer un fichier</div>
       <p class="muted" style="font-size:12px;margin-top:6px">Fichier d'historique MeRun (.json), par exemple préparé à partir de ton export Garmin. Les doublons sont ignorés.</p>
