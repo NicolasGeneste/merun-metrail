@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.0';
+const APP_VERSION = 'v4.9.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.0 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -495,12 +495,13 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  const w = PLAN.find(x=>x.num===V.week) || curWeek(); V.week = w.num;
+  /* v4.9.1 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
   const moods = w.sessions.map(s=>S.fb[s.code]&&S.fb[s.code].mood).filter(Boolean);
   const adj = S.adj.find(a => !a.off && a.from <= weekEnd(w) && a.to >= w.start);
-  const max = Math.max(...PLAN.map(x=>x.km));
+  const max = Math.max(...OFF.map(x=>x.km));
   const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   let idx = 0;
   const items = days.map(dd => {
@@ -512,9 +513,9 @@ function Plan(){
   const st = (l, v, sub) => `<div><div class="muted" style="font-size:11.5px">${l}</div><div class="anton" style="font-size:26px;line-height:1.1">${v}</div><div class="muted" style="font-size:11px">${sub}</div></div>`;
   return `<div class="pad">
     <div class="row" style="justify-content:space-between">
-      <button class="back" onclick="V.week=Math.max(1,V.week-1);render()" aria-label="Semaine précédente" ${w.num===1?'disabled style="opacity:.3"':''}>${ico('back')}</button>
+      <button class="back" onclick="V.week=Math.max(${PRE+1},V.week-1);render()" aria-label="Semaine précédente" ${w.num===PRE+1?'disabled style="opacity:.3"':''}>${ico('back')}</button>
       <div style="text-align:center"><div class="anton" style="font-size:26px;line-height:1">${w.num===curWeek().num?'Cette semaine':wLab(w)}</div>
-        <div class="muted" style="font-size:12px;margin-top:4px">${w.pre?'Pré-saison (hors stats)':(w.num-PRE)+' sur '+NW} · ${shortDate(w.start)} → ${shortDate(weekEnd(w))}</div></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${(w.num-PRE)+' sur '+NW} · ${shortDate(w.start)} → ${shortDate(weekEnd(w))}</div></div>
       <button class="back" onclick="V.week=Math.min(${PLAN.length},V.week+1);render()" aria-label="Semaine suivante" ${w.num===PLAN.length?'disabled style="opacity:.3"':''}>${ico('next')}</button></div>
     <div class="card">
       <div class="row" style="justify-content:space-between"><div style="font-weight:800">Ton aperçu hebdomadaire</div><span class="mono" style="color:${b.c}">Bloc ${w.bloc}</span></div>
@@ -532,8 +533,8 @@ function Plan(){
       <button class="pill" style="flex:1;background:${C.text};color:${C.bg}" onclick="exportWeek(${w.num})">Semaine vers Garmin (.zip)</button>
       <button class="pill" style="background:${C.surface}" onclick="exportAll()">Plan complet</button></div>
     <div class="card"><div class="mono muted" style="margin-bottom:14px">Le parcours · ${NW} semaines dès le ${shortDate(OFF_START)} · ${Math.round(TOTAL_KM)} km</div>
-      <div class="hist" role="group" aria-label="Volume par semaine">${PLAN.map(x => { const dk=Math.min(x.km, realWeek(x).km);
-      return `<button aria-label="Semaine ${x.num}, ${x.km} km" onclick="V.week=${x.num};render()" style="height:${Math.max(4,x.km/max*100)}%;background:${BLOC[x.bloc].c};opacity:${x.num===w.num?1:x.pre?.2:.45}">
+      <div class="hist" role="group" aria-label="Volume par semaine">${OFF.map(x => { const dk=Math.min(x.km, realWeek(x).km);
+      return `<button aria-label="Semaine ${x.num}, ${x.km} km" onclick="V.week=${x.num};render()" style="height:${Math.max(4,x.km/max*100)}%;background:${BLOC[x.bloc].c};opacity:${x.num===w.num?1:.45}">
       ${x.sessions.some(s=>s.kind==='race')?'<span class="fl"></span>':''}<i style="position:absolute;left:0;right:0;bottom:0;height:${x.km?dk/x.km*100:0}%;background:rgba(245,241,234,.55);border-radius:4px 4px 0 0"></i></button>`; }).join('')}</div>
       <div class="row muted" style="gap:14px;font-size:11px;margin-top:12px;flex-wrap:wrap">${Object.entries(BLOC).map(([k,v])=>`<span class="row" style="gap:6px"><i style="width:9px;height:9px;border-radius:50%;background:${v.c}"></i>${k} · ${v.n}</span>`).join('')}</div></div>
   </div>`;
@@ -578,7 +579,7 @@ function Detail({code}){
   return `<div class="pad">
     <div style="background:${k.c};color:${C.bg};border-radius:30px;padding:16px 18px 20px">
       <div class="row" style="justify-content:space-between"><button class="back hero-back" onclick="closeLayer()" aria-label="Retour">${ico('back')}</button>
-        <span class="mono" style="font-size:11px">S${String(s.week).padStart(2,'0')} · ${DOW[s.day]} ${shortDate(s.date)}</span></div>
+        <span class="mono" style="font-size:11px">${PLAN[s.week-1].pre?'Pré-saison':'S'+wNo(PLAN[s.week-1])} · ${DOW[s.day]} ${shortDate(s.date)}</span></div>
       <div class="row" style="margin-top:14px;gap:8px">${isKey(s)?`<span class="badge" style="background:${C.bg};color:${k.c}">Séance clé</span>`:''}<span style="font-weight:800;font-size:13px">${k.l}</span></div>
       <div class="anton" style="font-size:40px;line-height:1.02;margin-top:6px">${esc(s.title)}</div>
       ${real?`<div class="mono" style="font-size:10px;margin-top:12px">Réalisé${act.hr?' · FC moy '+act.hr:''}</div>`:''}
@@ -767,11 +768,11 @@ const readmeLine = s => `  ${s.code}.fit : ${s.title} (${kmOf(s)} km, ~${fmtDur(
 window.exportOne = s => { const x=ALL.find(y=>y.code===s); download(new Blob([fitOf(x)],{type:'application/octet-stream'}), x.code+'.fit'); toast('✓ '+x.code+'.fit téléchargé'); };
 window.exportWeek = async n => { try{ await ensureZip(); const w=PLAN.find(x=>x.num===n); if(!w.sessions.length) return toast('Semaine sans séance'); const z=new JSZip();
   w.sessions.forEach(s=>z.file(s.code+'.fit', fitOf(s)));
-  z.file('README.txt', `Semaine ${n} - ${w.title}\nAllures calculees pour VC ${S.vc} km/h\n\n${w.sessions.map(readmeLine).join('\n')}\n\n${HOWTO}\n`);
-  download(await z.generateAsync({type:'blob'}), `MeRun_S${String(n).padStart(2,'0')}_garmin.zip`); toast(`✓ Semaine ${n} exportée`); }catch(e){ console.error(e); toast('Erreur export'); } };
+  z.file('README.txt', `Semaine ${wNo(w)} - ${w.title}\nAllures calculees pour VC ${S.vc} km/h\n\n${w.sessions.map(readmeLine).join('\n')}\n\n${HOWTO}\n`);
+  download(await z.generateAsync({type:'blob'}), `MeRun_S${wNo(w).padStart(2,'0')}_garmin.zip`); toast(`✓ Semaine ${wNo(w)} exportée`); }catch(e){ console.error(e); toast('Erreur export'); } };
 window.exportAll = async () => { try{ await ensureZip(); const z=new JSZip();
-  PLAN.forEach(w=>{ const f=z.folder('S'+String(w.num).padStart(2,'0')); w.sessions.forEach(s=>f.file(s.code+'.fit', fitOf(s))); });
-  z.file('README.txt', `MeRun-MeTrail - Plan Marathon de Paris (05/10/2026 - 04/04/2027)\n${ALL.length} seances, allures pour VC ${S.vc} km/h\n\n${PLAN.map(w=>`S${String(w.num).padStart(2,'0')} - ${w.title} (${w.km} km)\n${w.sessions.map(readmeLine).join('\n')}`).join('\n\n')}\n\n${HOWTO}\n`);
+  OFF.forEach(w=>{ const f=z.folder('S'+wNo(w).padStart(2,'0')); w.sessions.forEach(s=>f.file(s.code+'.fit', fitOf(s))); });
+  z.file('README.txt', `MeRun-MeTrail - Plan Marathon de Paris (${OFF_START.split('-').reverse().join('/')} - 04/04/2027)\n${OFF.reduce((a,w)=>a+w.sessions.length,0)} seances, allures pour VC ${S.vc} km/h\n\n${OFF.map(w=>`S${wNo(w).padStart(2,'0')} - ${w.title} (${w.km} km)\n${w.sessions.map(readmeLine).join('\n')}`).join('\n\n')}\n\n${HOWTO}\n`);
   download(await z.generateAsync({type:'blob'}), 'MeRun_plan_complet_garmin.zip'); toast('✓ Plan complet exporté'); }catch(e){ console.error(e); toast('Erreur export'); } };
 /* ---------------- PPG ---------------- */
 /* P1 et P2 : onglet PPG du classeur v4 (contenu, series, repetitions). C : routine "haut du corps" de la v2.8.
