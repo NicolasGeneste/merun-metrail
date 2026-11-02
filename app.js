@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.5 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.6 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.5';
+const APP_VERSION = 'v4.9.6';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.5 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.6 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.5 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.6 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1774,8 +1774,10 @@ const lastDay = m => { const d=d8(m+'-01'); d.setMonth(d.getMonth()+1); d.setDat
 /* Toutes les sorties connues, sans doublon (historique + sorties recuperees ou importees en .fit) */
 function allRuns(){
   const out = [...histS().acts], seen = new Set(out.map(a=>a.id));
+  /* v4.9.6 : une sortie lue par Intervals.icu (id i...) et la meme venue de l'export Garmin (id g...) ont des
+     identifiants differents : on compare aussi jour, distance et duree (sinon les sorties recentes comptaient double) */
   for (const a of S.acts){ if (a.iv && seen.has(a.iv)) continue;
-    if (!a.iv && out.some(x => x.date===a.date && Math.abs(x.km-a.km)<0.05)) continue; out.push(a); }
+    if (out.some(x => histDup(x, {...a, id:a.iv||null}))) continue; out.push(a); }
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 /* Meilleurs segments detectes (hors segments ecartes par le coureur, et hors segments qui doublonnent
