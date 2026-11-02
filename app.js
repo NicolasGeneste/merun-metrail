@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.4 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.5 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.4';
+const APP_VERSION = 'v4.9.5';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.4 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.5 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.4 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.5 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1125,13 +1125,13 @@ function profile(){
   if (ws.length >= 2){ const r = ws.reduce((a,w)=>a+realWeek(w).km,0), p = ws.reduce((a,w)=>a+w.sessions.reduce((x,s)=>x+kmOf(s),0),0);
     ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(r/p*100)),raw:`${fmtN(r/ws.length)} km/sem.`,formula:`${fmtN(r)} km réalisés / ${fmtN(p)} km planifiés (${ws.length} sem.)`,src:'tes données MeRun',w:1}); }
   else if (histCovers(84)){ const avg = TOTAL_KM/NW, km = allRuns().filter(a=>age(a.date)<=84 && age(a.date)>0).reduce((s,a)=>s+a.km,0)/12;
-    ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(km/avg*100)),raw:`${fmtN(km)} km/sem.`,formula:`${fmtN(km)} km/sem. sur 12 semaines / ${fmtN(avg)} km de moyenne du plan`,src:'tes 12 dernières semaines (historique Intervals.icu)',w:1}); }
+    ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(km/avg*100)),raw:`${fmtN(km)} km/sem.`,formula:`${fmtN(km)} km/sem. sur 12 semaines / ${fmtN(avg)} km de moyenne du plan`,src:'tes 12 dernières semaines (historique importé)',w:1}); }
   else { const avg = TOTAL_KM/NW;
     ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(BASE.kmWeek/avg*100)),raw:`${BASE.kmWeek} km/sem.`,formula:`${BASE.kmWeek} km / ${fmtN(avg)} km de moyenne du plan`,src:BASE.src+' (pas encore 2 semaines terminées)',w:.5}); }
   const reg = regularity();
   if (reg.passed >= 4) ax.push({id:'regularite',label:'Régularité',score:reg.pct,raw:`${reg.done}/${reg.passed} séances`,formula:'séances validées / séances passées du plan',src:'tes données MeRun',w:1});
   else if (histCovers(182)){ const nW = Math.min(52, Math.floor((d8(t)-d8(histS().from))/864e5/7)), wk = new Set(allRuns().filter(a=>age(a.date)<=nW*7 && age(a.date)>0).map(a=>Math.floor(age(a.date)/7)));
-    ax.push({id:'regularite',label:'Régularité',score:Math.round(wk.size/nW*100),raw:`${wk.size}/${nW} sem. actives`,formula:'semaines avec au moins une sortie / semaines',src:`historique Intervals.icu, ${nW} dernières semaines`,w:1}); }
+    ax.push({id:'regularite',label:'Régularité',score:Math.round(wk.size/nW*100),raw:`${wk.size}/${nW} sem. actives`,formula:'semaines avec au moins une sortie / semaines',src:`historique importé, ${nW} dernières semaines`,w:1}); }
   else ax.push({id:'regularite',label:'Régularité',score:Math.round(BASE.wAct/BASE.wTot*100),raw:`${BASE.wAct}/${BASE.wTot} sem. actives`,formula:'semaines avec course / semaines',src:BASE.src,w:.5});
   let zs = allRuns().filter(a => a.zones && age(a.date) <= 28), zt = zs.reduce((a,x)=>a+x.zones.reduce((p,q)=>p+q,0),0), zd = 28;
   if (zt < 3600){ const z90 = allRuns().filter(a => a.zones && age(a.date) <= 90), t90 = z90.reduce((a,x)=>a+x.zones.reduce((p,q)=>p+q,0),0); if (t90 >= 3*3600){ zs = z90; zt = t90; zd = 90; } }
@@ -1778,13 +1778,34 @@ function allRuns(){
     if (!a.iv && out.some(x => x.date===a.date && Math.abs(x.km-a.km)<0.05)) continue; out.push(a); }
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
-/* Meilleurs segments detectes (hors segments ecartes par le coureur) */
+/* Meilleurs segments detectes (hors segments ecartes par le coureur, et hors segments qui doublonnent
+   un chrono officiel deja saisi : meme jour, meme distance a 10 % pres) */
+const histSrc = a => a.src==='garmin-export' ? 'export Garmin' : 'Intervals.icu';
 function histPerfs(){
   const h = histS(), out = [];
   for (const a of h.acts) if (a.best) for (const [k,sec] of Object.entries(a.best)){ const key=a.id+'|'+k; if (h.excl[key] || !HD[k]) continue;
-    out.push({id:key, date:a.date, km:HD[k][0], sec, l:HD[k][1], src:`meilleur ${HD[k][1]} dans « ${a.name||'sortie'} » (Intervals.icu)`, hist:true}); }
+    if (S.perfs.some(p => p.date===a.date && Math.abs(p.km-HD[k][0]) <= HD[k][0]*0.1)) continue;
+    out.push({id:key, date:a.date, km:HD[k][0], sec, l:HD[k][1], src:`meilleur ${HD[k][1]} dans « ${a.name||'sortie'} » (${histSrc(a)}, GPS)`, hist:true}); }
   return out;
 }
+/* Fusion sans doublon : meme identifiant, ou meme jour, meme distance (60 m) et meme duree (1 min) */
+const histDup = (x, a) => x.id===a.id || (x.date===a.date && Math.abs(x.km-a.km) < 0.06 && (!x.dur || !a.dur || Math.abs(x.dur-a.dur) <= 60));
+function histMerge(list){ const h = histS(); let n = 0;
+  for (const a of list){ if (!a || !a.date || !(a.km>0)) continue; if (h.acts.some(x => histDup(x, a))) continue; h.acts.push(a); n++; }
+  h.acts.sort((a,b)=>a.date.localeCompare(b.date)); return n; }
+function histRecount(m){ const h = histS(), xs = h.acts.filter(a => a.date.slice(0,7)===m), old = h.months[m] || {};
+  h.months[m] = {n:xs.length, km:Math.round(xs.reduce((a,x)=>a+x.km,0)*10)/10, stubs:old.stubs||0, others:old.others||0}; }
+window.histFile = () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,application/json'; inp.style.display='none'; document.body.appendChild(inp);
+  inp.onchange = async () => { const f = inp.files[0]; inp.remove(); if (!f) return;
+    try { const d = JSON.parse(await f.text()); if (d.format !== 'merun-hist-1' || !Array.isArray(d.acts)) return toast('Fichier non reconnu (historique MeRun attendu)');
+      const h = histS(), n = histMerge(d.acts);
+      for (const m of new Set([...Object.keys(d.months||{}), ...d.acts.map(a=>a.date.slice(0,7))])) histRecount(m);
+      for (const [k,v] of Object.entries(d.excl||{})) if (v) h.excl[k] = true;
+      let p = 0; for (const x of d.perfs||[]) if (!S.perfs.some(q => q.date===x.date && Math.abs(q.km-x.km) < 0.2)){ S.perfs.push({id:'f'+x.date+x.km, ...x}); p++; }
+      h.from = (!h.from || (d.from && d.from < h.from)) ? (d.from || h.from) : h.from; h.at = new Date().toISOString(); save(); render();
+      toast(`✓ ${n} sortie(s) ajoutée(s)${d.acts.length-n?` · ${d.acts.length-n} déjà présente(s)`:''}${p?` · ${p} chrono(s) de référence`:''}`);
+    } catch(e){ console.warn(e); toast('Fichier illisible'); } };
+  inp.click(); };
 V.hist = null;
 window.histImport = async from => {
   if (V.hist) return; const h = histS(), ms = monthsFrom(from);
@@ -1792,8 +1813,10 @@ window.histImport = async from => {
   try {
     for (const m of ms){
       const d = await ivCall('history', {oldest:m+'-01', newest:lastDay(m)});
-      h.acts = h.acts.filter(a => a.date.slice(0,7) !== m).concat(d.acts || []);
-      h.months[m] = {n:(d.acts||[]).length, km:Math.round((d.acts||[]).reduce((a,x)=>a+x.km,0)*10)/10, stubs:d.stubs||0, others:d.others||0};
+      /* on remplace les sorties Intervals.icu du mois, on garde celles d'un fichier importe (export Garmin) */
+      const fresh = d.acts || [];
+      h.acts = h.acts.filter(a => a.date.slice(0,7) !== m || (a.src==='garmin-export' && !fresh.some(x => histDup(x, a))));
+      histMerge(fresh); h.months[m] = {...(h.months[m]||{}), stubs:d.stubs||0, others:d.others||0}; histRecount(m);
       V.hist.i++; save(); render();
     }
     h.from = (!h.from || from < h.from) ? from : h.from; h.at = new Date().toISOString();
@@ -1814,8 +1837,11 @@ function Hist(){
   /* meilleurs segments : 3 par distance */
   const segs = Object.keys(HD).map(k => ({k, list: h.acts.filter(a=>a.best&&a.best[k]).map(a=>({a, sec:a.best[k], key:a.id+'|'+k})).sort((x,y)=>x.sec-y.sec).slice(0,3)})).filter(x=>x.list.length);
   const years = {}; for (const a of h.acts){ const y=a.date.slice(0,4); years[y]=years[y]||{n:0,km:0,long:null}; years[y].n++; years[y].km+=a.km; if(!years[y].long||a.km>years[y].long.km) years[y].long=a; }
-  return `<div class="pad">${head('Mon historique', 'Sorties course à pied lues dans Intervals.icu')}
-    ${!on ? `<div class="card"><p style="font-size:13px;color:var(--body)">Connecte d'abord Intervals.icu (Plus > Montre).</p></div>` : `
+  return `<div class="pad">${head('Mon historique', 'Sorties course à pied : export Garmin et Intervals.icu')}
+    <div class="card"><div class="mono muted">Importer un fichier</div>
+      <p class="muted" style="font-size:12px;margin-top:6px">Fichier d'historique MeRun (.json), par exemple préparé à partir de ton export Garmin. Les doublons sont ignorés.</p>
+      <div class="row" style="margin-top:10px">${btn('histFile()','Choisir le fichier',C.surface2,C.text,!!busy)}</div></div>
+    ${!on ? `<div class="card"><p style="font-size:13px;color:var(--body)">Pour lire aussi Intervals.icu, connecte-le (Plus > Montre).</p></div>` : `
     <div class="card"><div class="mono muted">Importer depuis</div>
       <div class="row" style="gap:8px;margin-top:10px">${btn("histImport('2024-01-01')",'Janv. 2024',C.surface2,C.text,!!busy)}${btn("histImport('2025-01-01')",'Janv. 2025',C.teal,C.bg,!!busy)}</div>
       ${busy?`<div class="bar" style="background:var(--surface-2);margin-top:12px"><i style="width:${Math.round(busy.i/busy.n*100)}%;background:${C.teal}"></i></div><div class="muted" style="font-size:12px;margin-top:6px">Mois ${busy.i}/${busy.n}…</div>`:''}
@@ -1827,7 +1853,7 @@ function Hist(){
     <div class="card"><div class="mono muted">Par année</div>${Object.entries(years).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px"><b>${y}</b><span>${v.n} sorties · ${Math.round(v.km)} km · plus longue ${fmtN(v.long.km)} km</span></div>`).join('')}</div>
     ${segs.length?`<div class="card"><div class="mono muted">Meilleurs segments détectés</div>
       <p class="muted" style="font-size:11.5px;margin-top:4px">Calculés sur le GPS, pauses comprises. Un segment d'entraînement n'est pas une course : écarte ceux qui te paraissent faux, ils sortent alors du profil.</p>
-      ${segs.map(g=>`<div style="margin-top:10px"><div style="font-weight:800">${HD[g.k][1]}</div>${g.list.map(x=>{ const ex=!!h.excl[x.key]; return `<div class="row" style="justify-content:space-between;gap:8px;font-size:13px;margin-top:6px;${ex?'opacity:.45':''}"><span style="min-width:0"><b>${fmtHMS(x.sec)}</b> <span class="muted">(${fmtPace(Math.round(x.sec/HD[g.k][0]))}/km) · ${shortDate(x.a.date)} ${x.a.date.slice(0,4)} · ${esc(x.a.name||'')}</span></span><button class="pill" style="flex:none;padding:6px 10px;font-size:11.5px;background:${ex?C.surface2:'rgba(0,212,184,.16)'};color:${ex?C.muted:C.teal}" onclick="histExcl('${x.key}')">${ex?'écarté':'✓ utilisé'}</button></div>`; }).join('')}</div>`).join('')}</div>`:''}
+      ${segs.map(g=>`<div style="margin-top:10px"><div style="font-weight:800">${HD[g.k][1]}</div>${g.list.map(x=>{ const ex=!!h.excl[x.key]; return `<div class="row" style="justify-content:space-between;gap:8px;font-size:13px;margin-top:6px;${ex?'opacity:.45':''}"><span style="min-width:0"><b>${fmtHMS(x.sec)}</b> <span class="muted">(${fmtPace(Math.round(x.sec/HD[g.k][0]))}/km) · ${shortDate(x.a.date)} ${x.a.date.slice(0,4)} · ${esc(x.a.name||'')}${S.perfs.some(p=>p.date===x.a.date&&Math.abs(p.km-HD[g.k][0])<=HD[g.k][0]*0.1)?' · déjà dans tes chronos de référence':''}</span></span><button class="pill" style="flex:none;padding:6px 10px;font-size:11.5px;background:${ex?C.surface2:'rgba(0,212,184,.16)'};color:${ex?C.muted:C.teal}" onclick="histExcl('${x.key}')">${ex?'écarté':'✓ utilisé'}</button></div>`; }).join('')}</div>`).join('')}</div>`:''}
     <button class="pill" style="background:${C.surface};color:${C.pink};padding:12px" onclick="histClear()">Effacer l'historique importé</button>` : ''}
   </div>`;
 }
