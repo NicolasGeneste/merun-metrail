@@ -44,25 +44,25 @@ export default async (req) => {
     switch (body.action){
       case 'ping': {
         const a = await iv(ath());
-        return json(200, { ok: true, athlete: a && (a.name || a.firstname || a.id) });
+        /* Reglages course : sans allure seuil, Intervals.icu retire les cibles d'allure a l'envoi vers Garmin
+           (forum Intervals.icu, 17/07/2026, "Pace targets lost in Garmin export...") */
+        const rs = ((a && a.sportSettings) || []).find(s => (s.types || []).includes('Run')) || {};
+        return json(200, { ok: true, athlete: a && (a.name || a.firstname || a.id), run: { thresholdPace: rs.threshold_pace || null, maxHr: rs.max_hr || null, lthr: rs.lthr || null } });
       }
       case 'push': {
         const ws = (body.workouts || []).filter(w => w && /^\d{4}-\d{2}-\d{2}$/.test(w.date) && w.external_id && w.description);
         if (!ws.length) return json(400, { error: 'Aucune séance valide' });
         if (ws.length > 60) return json(400, { error: '60 séances maximum par envoi' });
         const dates = ws.map(w => w.date).sort();
-        /* Les seances deja envoyees sont retrouvees par external_id dans le calendrier, puis mises a jour par id :
-           on ne depend pas de upsert=true, documente pour les applications OAuth. */
+        /* Les seances deja envoyees sont retrouvees par external_id dans le calendrier, supprimees puis recreees :
+           une mise a jour sur place ne relance pas l'export vers Garmin (forum Intervals.icu, 17/07/2026),
+           et on ne depend pas de upsert=true, documente pour les applications OAuth. */
         const existing = await iv(`${ath()}/events?oldest=${dates[0]}&newest=${dates[dates.length - 1]}&category=WORKOUT`);
-        const byExt = new Map((existing || []).filter(e => e.external_id).map(e => [e.external_id, e]));
-        const out = [], fresh = [];
-        for (const w of ws){
-          const cur = byExt.get(w.external_id);
-          if (cur) out.push(slim(await iv(`${ath()}/events/${cur.id}`, { method: 'PUT', body: JSON.stringify(ev(w)) })) || { id: cur.id, external_id: w.external_id, date: w.date, push_errors: [] });
-          else fresh.push(ev(w));
-        }
-        if (fresh.length){ const created = await iv(`${ath()}/events/bulk`, { method: 'POST', body: JSON.stringify(fresh) }); for (const e of created || []) out.push(slim(e)); }
-        return json(200, { ok: true, events: out });
+        const ext = new Set(ws.map(w => w.external_id));
+        const old = (existing || []).filter(e => e.external_id && ext.has(e.external_id)).map(e => ({ id: e.id }));
+        if (old.length) await iv(`${ath()}/events/bulk-delete`, { method: 'PUT', body: JSON.stringify(old) });
+        const created = await iv(`${ath()}/events/bulk`, { method: 'POST', body: JSON.stringify(ws.map(ev)) });
+        return json(200, { ok: true, events: (created || []).map(slim), replaced: old.length });
       }
       case 'delete': {
         const ids = (body.ids || []).map(Number).filter(Number.isFinite);

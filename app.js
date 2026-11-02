@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.8.2 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.8.3 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.8.2';
+const APP_VERSION = 'v4.8.3';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.8.2 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.8.3 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -1310,7 +1310,7 @@ function Plus(){
     <div class="card row"><img src="./icons/icon-192.png" alt="" width="60" height="60" style="border-radius:18px"><div><div class="anton" style="font-size:26px">${esc(S.name)}</div>
       <div class="muted" style="font-size:12.5px">VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax}</div></div></div>
     <div class="grid2">${tile('acts','Activités',C.orange)}${tile('defis','Défis',C.pink)}${tile('zones','Zones FC & allure',C.teal)}${tile('nut','Nutrition',C.amber)}${tile('methods','Méthodes',C.surface2,C.text)}${tile('reglages','Réglages',C.surface,C.text)}</div>
-    <button class="card row" style="text-align:left;border:2px solid ${ivCode()?C.teal:C.surface2}" onclick="openLayer('montre')"><span class="kdot" style="background:${C.teal}">${ico('activity',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Montre · Intervals.icu</span><span class="muted" style="font-size:12.5px">${ivCode()?'Envoi des séances et retour des sorties':'Envoyer les séances sur la Garmin sans fichier'}</span></span>${ico('next',18)}</button>
+    <button class="card row" style="text-align:left;border:2px solid ${ivCode()?(ivWarnings().length?C.amber:C.teal):C.surface2}" onclick="openLayer('montre')"><span class="kdot" style="background:${C.teal}">${ico('activity',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Montre · Intervals.icu</span><span class="muted" style="font-size:12.5px">${ivCode()?(ivWarnings().length?'Réglages Intervals.icu à corriger':'Envoi des séances et retour des sorties'):'Envoyer les séances sur la Garmin sans fichier'}</span></span>${ico('next',18)}</button>
     <p class="muted" style="font-size:11px;text-align:center">MeRun-MeTrail ${APP_VERSION}</p>
   </div>`;
 }
@@ -1506,6 +1506,7 @@ async function ivAuto(){
   if (st.lastAuto && Date.now() - st.lastAuto < 3*3600e3) return;
   st.lastAuto = Date.now(); save();
   try {
+    if (!st.checked || Date.now() - Date.parse(st.checked) > 864e5){ try { const d = await ivCall('ping'); st.run = d.run || null; st.checked = new Date().toISOString(); save(); } catch(e){} }
     await ivPull(true);
     const stale = ALL.filter(s => ivSendable(s) && ivStatus(s)==='stale');
     if (stale.length){ await ivPush(stale, true); toast(`✓ ${stale.length} séance(s) ajustée(s) renvoyée(s) vers la montre`); }
@@ -1522,7 +1523,20 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 window.ivSaveCode = async () => { const v = ($('#ivCode')||{}).value||''; ivSetCode(v.trim());
   if (!v.trim()) { render(); return toast('Code effacé'); }
-  await ivRun('ping', async () => { const d = await ivCall('ping'); ivState().athlete = d.athlete || 'OK'; save(); toast('✓ Connecté à Intervals.icu'); }); };
+  await ivRun('ping', ivCheck); };
+/* Verifie la connexion et les reglages course d'Intervals.icu (allure seuil, FC max) */
+async function ivCheck(){ const d = await ivCall('ping'), st = ivState();
+  st.athlete = d.athlete || 'OK'; st.run = d.run || null; st.checked = new Date().toISOString(); save();
+  const w = ivWarnings(); toast(w.length ? '⚠ Connecté, mais '+w.length+' réglage(s) à corriger' : '✓ Connecté, réglages Intervals.icu OK'); }
+window.ivCheckNow = () => ivRun('ping', ivCheck);
+const VC_PACE = () => Math.round(3600/S.vc);   // allure seuil MeRun = VC (s/km)
+function ivWarnings(){ const r = ivState().run; if (!r) return [];
+  const w = [];
+  if (!r.thresholdPace) w.push(`<b>Allure seuil absente</b> (Settings > Course à pied > Threshold pace) : sans elle, Intervals.icu retire les allures des séances envoyées à Garmin. Mets <b>${fmtPace(VC_PACE())} /km</b> (ta VC de ${fmtN(S.vc)} km/h), puis appuie sur « Tout renvoyer ».`);
+  if (r.maxHr && r.maxHr !== S.fcmax) w.push(`<b>FC max différente</b> : ${r.maxHr} dans Intervals.icu, ${S.fcmax} dans MeRun. Les séances en dénivelé visent un % de FC max : mets la même valeur des deux côtés.`);
+  return w; }
+window.ivResendAll = () => ivRun('push', async () => { const n = await ivPush(ALL.filter(s => ivSendable(s) && ivState().sent[s.code]), true);
+  toast(n ? `✓ ${n} séance(s) supprimée(s) puis recréée(s) : lance une synchro Garmin Connect` : 'Aucune séance à venir déjà envoyée'); });
 
 /* Ecran Plus > Montre */
 function Montre(){
@@ -1536,17 +1550,22 @@ function Montre(){
       <div class="field" style="margin-top:8px"><span>Code d'accès MeRun</span><input id="ivCode" type="password" autocomplete="off" placeholder="MERUN_CODE" value="${esc(ivCode())}" style="max-width:150px"></div>
       ${btn('ivSaveCode()', b==='ping'?'Test en cours…':'Enregistrer et tester', C.teal, C.bg, !!b)}
       <p class="muted" style="font-size:11.5px;margin-top:8px">Ce code protège l'accès à ta clé Intervals.icu, qui reste sur Netlify. Il est gardé sur ce téléphone uniquement.</p></div>
+    ${on && ivWarnings().length ? `<div class="card" style="border:2px solid ${C.amber}"><div class="mono" style="color:${C.amber}">Réglages Intervals.icu à corriger</div>
+      ${ivWarnings().map(t=>`<p style="font-size:13px;color:var(--body);margin-top:8px">${t}</p>`).join('')}
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${btn('ivCheckNow()', b==='ping'?'Vérification…':'Revérifier', C.surface2, C.text, !!b)}</div></div>` : ''}
     ${on ? `<div class="card"><div class="mono muted">Synchronisation</div>
       <div class="muted" style="font-size:12.5px;margin:6px 0 12px">${nSent} séance(s) envoyée(s)${st.lastPush?' · dernier envoi '+shortDate(st.lastPush.slice(0,10)):''}${st.lastPull?' · sorties lues le '+shortDate(st.lastPull):''}${stale?` · <b style="color:${C.amber}">${stale} à renvoyer (plan ajusté)</b>`:''}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${btn('ivSendNext()', b==='push'?'Envoi…':'Envoyer les 7 prochains jours', C.orange, C.bg, !!b)}
-        ${btn('ivPullNow()', b==='pull'?'Lecture…':'Récupérer mes sorties', C.surface2, C.text, !!b)}</div>
+        ${btn('ivPullNow()', b==='pull'?'Lecture…':'Récupérer mes sorties', C.surface2, C.text, !!b)}
+        ${nSent ? btn('ivResendAll()', b==='push'?'Envoi…':'Tout renvoyer (supprime et recrée)', C.surface2, C.text, !!b) : ''}</div>
       <div class="field" style="margin-top:10px"><span>Synchro auto à l'ouverture</span><button class="tgl ${st.auto?'on':''}" aria-pressed="${!!st.auto}" onclick="ivState().auto=!ivState().auto;save();render()"></button></div>
       <p class="muted" style="font-size:11.5px">Auto : toutes les 3 h au plus, récupère les sorties et renvoie les séances déjà envoyées que le plan adaptatif a modifiées. Les séances ne sont jamais validées automatiquement : c'est toi qui valides, avec ton ressenti et ton mood.</p></div>` : ''}
     <div class="card"><div class="mono muted">Mise en place (une fois)</div>
       <ol style="font-size:13px;color:var(--body);padding-left:18px;margin-top:8px">
         ${step(1,'Compte gratuit sur intervals.icu, puis relier Garmin Connect dans les réglages.')}
         ${step(2,'Cocher « Upload planned workouts » et « Download activities » pour Garmin.')}
+        ${step(3,'Course à pied : régler l\'allure seuil (Threshold pace) à '+fmtPace(Math.round(3600/S.vc))+' /km, sinon les allures n\'arrivent pas sur la montre.')}
         ${step(3,'Régler dans Intervals.icu la même FC max que dans MeRun (Réglages, '+S.fcmax+') : les séances en dénivelé visent un % de FC max.')}
         ${step(4,'Settings > Developer Settings : générer la clé API et noter l\'athlete ID (i123456).')}
         ${step(5,'Netlify > Site configuration > Environment variables : INTERVALS_API_KEY, INTERVALS_ATHLETE_ID, MERUN_CODE.')}
