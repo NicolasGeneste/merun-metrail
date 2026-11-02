@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.3 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.4 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.3';
+const APP_VERSION = 'v4.9.4';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.3 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.4 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -458,7 +458,6 @@ function Home(){
   const rest = MILES.slice(0,3).filter(m => daysTo(m.date) >= 0); const up = [...(rest.length>=2?rest.slice(0,2):MILES.slice(1,3)), MILES[3]];
   const n = nextSession(), k = KIND[n.kind];
   const pend = pending(); const adj = activeAdj()[0];
-  const ch = challenges().find(c => S.joined[c.id]) || challenges()[0];
   return `<div class="hero" style="aspect-ratio:412/430;height:auto">
     <svg class="land" viewBox="0 0 412 430" role="img" aria-label="Piste de préparation : ${cwk.pre?'pré-saison':'semaine '+cw+' sur '+NW}, ${Math.round(km)} km parcourus" style="height:100%">${hexTrailSVG({x:14,y:104,w:384,h:312},{w:412,h:430},'hm')}</svg>
     <div style="position:absolute;left:18px;top:12px"><div class="anton h1">L'ascension</div><div class="muted" style="font-size:12.5px;margin-top:5px">Salut ${esc(S.name)} · ${label}</div><div style="font-size:12.5px;margin-top:3px;color:${C.orange}">${cwk.pre?'Pré-saison · départ officiel le '+shortDate(OFF_START):'S'+cw+'/'+NW+' · '+Math.round(km)+' / '+Math.round(TOTAL_KM)+' km parcourus'}</div></div>
@@ -478,9 +477,7 @@ function Home(){
       <div class="row" style="justify-content:space-between;width:100%"><div class="row" style="gap:8px"><span class="chip">${fmtN(kmOf(n))} km</span><span class="chip">${fmtDur(sessDur(n))}</span>${bolts(diffOf(n), C.bg)}</div>
       <span style="width:44px;height:44px;border-radius:50%;background:${C.bg};color:${k.c};display:grid;place-items:center">${ico('arrow')}</span></div>
     </button>
-    ${ch ? `<button onclick="openLayer('defis')" style="background:${C.pink};color:${C.bg};border-radius:26px;padding:18px;text-align:left;display:flex;flex-direction:column;gap:10px">
-      <div class="mono" style="font-size:10.5px">Défi en cours</div><div class="row" style="justify-content:space-between"><div class="anton" style="font-size:24px">${esc(ch.t)}</div><div style="font-weight:800">${fmtN(ch.v)} / ${fmtN(ch.goal)}</div></div>
-      <div class="bar"><i style="width:${Math.min(100,ch.v/ch.goal*100)}%"></i></div></button>` : ''}
+    
   </div>`;
 }
 function adjBanner(a){
@@ -495,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.3 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.4 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1318,7 +1315,7 @@ function Plus(){
   return `<div class="pad">
     <div class="card row"><img src="./icons/icon-192.png" alt="" width="60" height="60" style="border-radius:18px"><div><div class="anton" style="font-size:26px">${esc(S.name)}</div>
       <div class="muted" style="font-size:12.5px">VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax}</div></div></div>
-    <div class="grid2">${tile('acts','Activités',C.orange)}${tile('defis','Défis',C.pink)}${tile('zones','Zones FC & allure',C.teal)}${tile('nut','Nutrition',C.amber)}${tile('methods','Méthodes',C.surface2,C.text)}${tile('reglages','Réglages',C.surface,C.text)}</div>
+    <div class="grid2">${tile('acts','Activités',C.orange)}${tile('zones','Zones FC & allure',C.teal)}${tile('methods','Méthodes',C.surface2,C.text)}${tile('reglages','Réglages',C.surface,C.text)}</div>
     <button class="card row" style="text-align:left;border:2px solid ${ivCode()?(ivWarnings().length?C.amber:C.teal):C.surface2}" onclick="openLayer('montre')"><span class="kdot" style="background:${C.teal}">${ico('activity',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Montre · Intervals.icu</span><span class="muted" style="font-size:12.5px">${ivCode()?(ivWarnings().length?'Réglages Intervals.icu à corriger':'Envoi des séances et retour des sorties'):'Envoyer les séances sur la Garmin sans fichier'}</span></span>${ico('next',18)}</button>
     <p class="muted" style="font-size:11px;text-align:center">MeRun-MeTrail ${APP_VERSION}</p>
   </div>`;
