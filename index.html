@@ -45,7 +45,7 @@ nav button.on{background:var(--teal);color:var(--bg);padding:0 14px}
 nav button span{display:none;font-size:13px;font-weight:800}nav button.on span{display:inline}
 nav svg,.ico{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* overlay */
-.overlay{position:absolute;inset:0;background:var(--bg);z-index:30;animation:up .25s ease-out}
+.overlay{position:absolute;inset:0;background:var(--bg);z-index:30}.overlay.enter{animation:up .25s ease-out}
 @keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 @keyframes hxp{0%,100%{opacity:1}50%{opacity:.6}}
 .hxcur{animation:hxp 1.8s ease-in-out infinite}

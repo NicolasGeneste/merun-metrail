@@ -34,6 +34,20 @@ function zonesOf(t, hr){
   return z.some(Boolean) ? z : null;
 }
 
+/* Meilleur temps sur une distance D (m) a partir des flux distance cumulee et temps (s), deux pointeurs.
+   Les pauses comptent (temps ecoule) : estimation prudente. Vitesse > 7 m/s (2:23/km) rejetee (saut GPS). */
+function bestOver(t, d, D){
+  let best = null, i = 0;
+  for (let j = 1; j < d.length; j++){
+    while (i + 1 < j && d[j] - d[i + 1] >= D) i++;
+    if (d[j] - d[i] >= D){ const dt = t[j] - t[i]; if (dt > 0 && D / dt <= 7 && (best === null || dt < best)) best = dt; }
+  }
+  return best;
+}
+async function pool(items, n, fn){ const out = new Array(items.length); let k = 0;
+  await Promise.all(Array.from({length: Math.min(n, items.length)}, async () => { while (k < items.length){ const i = k++; out[i] = await fn(items[i]); } }));
+  return out; }
+
 export default async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'POST uniquement' });
   if (!env('INTERVALS_API_KEY') || !env('INTERVALS_ATHLETE_ID') || !env('MERUN_CODE')) return json(500, { error: 'Variables INTERVALS_API_KEY, INTERVALS_ATHLETE_ID ou MERUN_CODE absentes sur Netlify' });
@@ -88,6 +102,28 @@ export default async (req) => {
                    hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, zones, device: a.device_name || null };
         }));
         return json(200, { ok: true, acts, skipped: list.length - runs.length });
+      }
+      case 'history': {
+        /* Historique par tranche (l'appli decoupe en periodes de 2 mois : limite Netlify de 60 s par appel) */
+        const re = /^\d{4}-\d{2}-\d{2}$/; if (!re.test(body.oldest || '') || !re.test(body.newest || '')) return json(400, { error: 'Dates invalides' });
+        const q = new URLSearchParams({ oldest: body.oldest, newest: body.newest + 'T23:59:59', limit: '300', fields: 'id,name,type,start_date_local,distance,moving_time,elapsed_time,average_heartrate,has_heartrate,device_name,total_elevation_gain' });
+        const list = (await iv(`${ath()}/activities?${q}`)) || [];
+        const stubs = list.filter(a => a && !a.type).length;                       // activites Strava : objet vide via l'API
+        const runs = list.filter(a => a && a.id && /run/i.test(a.type || '') && a.distance > 0);
+        const others = list.length - stubs - runs.length;
+        const acts = await pool(runs, 6, async a => {
+          let zones = null, best = null;
+          try {
+            const st = await iv(`/activity/${encodeURIComponent(a.id)}/streams.json?types=time,heartrate,distance`);
+            const g = k => ((st || []).find(s => s.type === k) || {}).data || [];
+            const t = g('time'), hr = g('heartrate'), d = g('distance');
+            if (t.length && t.length === hr.length) zones = zonesOf(t, hr);
+            if (t.length && t.length === d.length){ best = {}; for (const [k, D] of [['5', 5000], ['10', 10000], ['21', 21097.5], ['42', 42195]]) { if (a.distance >= D){ const b = bestOver(t, d, D); if (b) best[k] = b; } } }
+          } catch { /* sortie sans flux lisible : resume seul */ }
+          return { id: a.id, name: a.name, date: (a.start_date_local || '').slice(0, 10), km: Math.round(a.distance / 10) / 100, dur: a.moving_time || a.elapsed_time || null,
+                   hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, dplus: a.total_elevation_gain ? Math.round(a.total_elevation_gain) : null, zones, best, device: a.device_name || null };
+        });
+        return json(200, { ok: true, acts, stubs, others });
       }
       default: return json(400, { error: 'Action inconnue' });
     }

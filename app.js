@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.8.3 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.8.3';
+const APP_VERSION = 'v4.9.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.8.3 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.0 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -372,7 +372,9 @@ const TABS = [['home','Accueil','home'],['plan','Séances','list'],['goal','Obje
 function render(){
   $('#nav').innerHTML = TABS.map(([k,l,i]) => `<button class="${V.tab===k?'on':''}" data-tab="${k}" aria-label="${l}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#screen').innerHTML = ({home:Home,plan:Plan,goal:Goal,profil:Profil,ppg:PPG,plus:Plus})[V.tab]();
-  $('#layer').innerHTML = V.layers.map((l,i) => `<div class="overlay" style="z-index:${30+i}"><div class="scroll">${LAYER[l.k](l)}</div></div>`).join('');
+  /* animation d'entree seulement pour une couche qui vient d'etre ouverte (pas a chaque rendu) */
+  const nl = V.layers.length, enter = nl > (V._ln||0); V._ln = nl;
+  $('#layer').innerHTML = V.layers.map((l,i) => `<div class="overlay${enter&&i===nl-1?' enter':''}" style="z-index:${30+i}"><div class="scroll">${LAYER[l.k](l)}</div></div>`).join('');
   if (V.tab==='ppg' && !V.layers.length) ppgPaint();
 }
 function go(tab){ if (V.layers.length){ V.layers=[]; history.replaceState({l:0},''); } V.tab = tab; render(); $('#screen').scrollTop = 0; }
@@ -1113,7 +1115,7 @@ const ARCH = {
 };
 function profile(){
   const t = todayIso(), T = S.goal.target, age = d => (d8(t)-d8(d))/864e5, ax = [];
-  const best = f => S.perfs.filter(f).map(p=>({...p, proj:riegel(p.sec,p.km)})).sort((a,b)=>a.proj-b.proj)[0];
+  const best = f => [...S.perfs, ...histPerfs()].filter(f).map(p=>({...p, proj:riegel(p.sec,p.km)})).sort((a,b)=>a.proj-b.proj)[0];
   for (const [id,label,f,txt] of [['endurance','Endurance',p=>p.km>=15,'chrono de 15 km ou plus'],['vitesse','Vitesse',p=>p.km<=10,'chrono de 10 km ou moins']]){
     const b = best(f);
     if (!b){ ax.push({id,label,score:null,raw:'Aucun '+txt,formula:'-',src:'Ajoute un chrono (Objectif › Mes chronos)',w:0}); continue; }
@@ -1124,14 +1126,19 @@ function profile(){
   const ws = OFF.filter(w => weekEnd(w) < t && w.km > 0).slice(-4);
   if (ws.length >= 2){ const r = ws.reduce((a,w)=>a+realWeek(w).km,0), p = ws.reduce((a,w)=>a+w.sessions.reduce((x,s)=>x+kmOf(s),0),0);
     ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(r/p*100)),raw:`${fmtN(r/ws.length)} km/sem.`,formula:`${fmtN(r)} km réalisés / ${fmtN(p)} km planifiés (${ws.length} sem.)`,src:'tes données MeRun',w:1}); }
+  else if (histCovers(84)){ const avg = TOTAL_KM/NW, km = allRuns().filter(a=>age(a.date)<=84 && age(a.date)>0).reduce((s,a)=>s+a.km,0)/12;
+    ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(km/avg*100)),raw:`${fmtN(km)} km/sem.`,formula:`${fmtN(km)} km/sem. sur 12 semaines / ${fmtN(avg)} km de moyenne du plan`,src:'tes 12 dernières semaines (historique Intervals.icu)',w:1}); }
   else { const avg = TOTAL_KM/NW;
     ax.push({id:'volume',label:'Volume',score:Math.min(100,Math.round(BASE.kmWeek/avg*100)),raw:`${BASE.kmWeek} km/sem.`,formula:`${BASE.kmWeek} km / ${fmtN(avg)} km de moyenne du plan`,src:BASE.src+' (pas encore 2 semaines terminées)',w:.5}); }
   const reg = regularity();
   if (reg.passed >= 4) ax.push({id:'regularite',label:'Régularité',score:reg.pct,raw:`${reg.done}/${reg.passed} séances`,formula:'séances validées / séances passées du plan',src:'tes données MeRun',w:1});
+  else if (histCovers(182)){ const nW = Math.min(52, Math.floor((d8(t)-d8(histS().from))/864e5/7)), wk = new Set(allRuns().filter(a=>age(a.date)<=nW*7 && age(a.date)>0).map(a=>Math.floor(age(a.date)/7)));
+    ax.push({id:'regularite',label:'Régularité',score:Math.round(wk.size/nW*100),raw:`${wk.size}/${nW} sem. actives`,formula:'semaines avec au moins une sortie / semaines',src:`historique Intervals.icu, ${nW} dernières semaines`,w:1}); }
   else ax.push({id:'regularite',label:'Régularité',score:Math.round(BASE.wAct/BASE.wTot*100),raw:`${BASE.wAct}/${BASE.wTot} sem. actives`,formula:'semaines avec course / semaines',src:BASE.src,w:.5});
-  const zs = S.acts.filter(a => a.zones && age(a.date) <= 28), zt = zs.reduce((a,x)=>a+x.zones.reduce((p,q)=>p+q,0),0);
+  let zs = allRuns().filter(a => a.zones && age(a.date) <= 28), zt = zs.reduce((a,x)=>a+x.zones.reduce((p,q)=>p+q,0),0), zd = 28;
+  if (zt < 3600){ const z90 = allRuns().filter(a => a.zones && age(a.date) <= 90), t90 = z90.reduce((a,x)=>a+x.zones.reduce((p,q)=>p+q,0),0); if (t90 >= 3*3600){ zs = z90; zt = t90; zd = 90; } }
   if (zt >= 3600){ const z = zs.reduce((a,x)=>a+x.zones[0]+x.zones[1],0)/zt*100;
-    ax.push({id:'polarisation',label:'Polarisation',score:Math.min(100,Math.round(z/80*100)),raw:`${Math.round(z)} % en Z1-Z2`,formula:`${Math.round(z)} % / 80 % visés`,src:`FC de tes .fit, 28 derniers jours (${fmtHM(zt)})`,w:1}); }
+    ax.push({id:'polarisation',label:'Polarisation',score:Math.min(100,Math.round(z/80*100)),raw:`${Math.round(z)} % en Z1-Z2`,formula:`${Math.round(z)} % / 80 % visés`,src:`FC de tes sorties, ${zd} derniers jours (${fmtHM(zt)})`,w:1}); }
   else ax.push({id:'polarisation',label:'Polarisation',score:Math.round(BASE.z12/80*100),raw:`${BASE.z12} % en Z1-Z2`,formula:`${BASE.z12} % / 80 % visés`,src:BASE.src+' (importe des .fit pour l’actualiser)',w:.5});
   const ms = Object.values(S.fb).filter(f => f.mood && age(f.date) <= 7);
   if (ms.length){ const m = ms.reduce((a,f)=>a+f.mood,0)/ms.length;
@@ -1175,6 +1182,7 @@ function Profil(){
     <div class="card" style="border:1.5px solid ${scCol(sel.score)}"><div class="row" style="justify-content:space-between"><div class="anton" style="font-size:22px">${sel.label}</div>
       <span class="mono" style="color:${scCol(sel.score)}">${sel.score==null?'Non mesuré':sel.score>=80?'Au niveau':sel.score>=50?'À travailler':'Priorité'}</span></div>
       <p style="font-size:13px;color:var(--body);margin-top:8px">Calcul : ${esc(sel.formula)}</p><p class="muted" style="font-size:12px;margin-top:4px">Source : ${esc(sel.src)}</p></div>
+    <button class="card row" style="text-align:left" onclick="openLayer('hist')"><span class="kdot" style="background:${C.surface2};color:${C.text}">${ico('activity',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Mon historique</span><span class="muted" style="font-size:12.5px">${histS().acts.length?histS().acts.length+' sorties importées · contrôle mois par mois':'Importer mes sorties depuis Intervals.icu pour un profil complet'}</span></span>${ico('next',18)}</button>
     <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="openLayer('share',{week:curWeek().num})">${ico('share',18)} Partager ma semaine</button>
     <p class="muted" style="font-size:11px;text-align:center">Méthodes et sources : Plus › Méthodes</p>
   </div>`;
@@ -1558,6 +1566,7 @@ function Montre(){
       <div style="display:flex;flex-direction:column;gap:8px">
         ${btn('ivSendNext()', b==='push'?'Envoi…':'Envoyer les 7 prochains jours', C.orange, C.bg, !!b)}
         ${btn('ivPullNow()', b==='pull'?'Lecture…':'Récupérer mes sorties', C.surface2, C.text, !!b)}
+        ${btn("openLayer('hist')", 'Mon historique', C.surface2, C.text, !!b)}
         ${nSent ? btn('ivResendAll()', b==='push'?'Envoi…':'Tout renvoyer (supprime et recrée)', C.surface2, C.text, !!b) : ''}</div>
       <div class="field" style="margin-top:10px"><span>Synchro auto à l'ouverture</span><button class="tgl ${st.auto?'on':''}" aria-pressed="${!!st.auto}" onclick="ivState().auto=!ivState().auto;save();render()"></button></div>
       <p class="muted" style="font-size:11.5px">Auto : toutes les 3 h au plus, récupère les sorties et renvoie les séances déjà envoyées que le plan adaptatif a modifiées. Les séances ne sont jamais validées automatiquement : c'est toi qui valides, avec ton ressenti et ton mood.</p></div>` : ''}
@@ -1740,7 +1749,78 @@ function WkSet(l){
     <p class="muted" style="font-size:11.5px">Règles MeRun : la semaine ne dépasse jamais son volume prévu ou +10 % sur la semaine précédente (le plus grand des deux). Une hausse de plus de 30 % en deux semaines a été associée à davantage de blessures chez des coureurs débutants (Nielsen et al., JOSPT 2014). Tes retours de séance peuvent toujours alléger la semaine ensuite.</p>
   </div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet});
+
+/* ---------------- Historique Intervals.icu (v4.9) ----------------
+   Import mois par mois (une requete par mois : limite Netlify de 60 s par appel) des sorties course a pied,
+   avec zones FC (bornes CHU) et meilleurs segments 5 / 10 / 21,1 / 42,2 km calcules sur les flux.
+   Stocke a part dans S.hist : n'entre ni dans le plan, ni dans la piste, ni dans les defis. Sert au profil. */
+const HD = {'5':[5,'5 km'], '10':[10,'10 km'], '21':[21.0975,'Semi'], '42':[42.195,'Marathon']};
+const histCovers = days => { const h = (S.hist||{}); return !!(h.from && h.acts && h.acts.length && (d8(todayIso())-d8(h.from))/864e5 >= days); };
+const histS = () => (S.hist = S.hist || {from:null, at:null, acts:[], months:{}, excl:{}});
+const monthsFrom = from => { const out=[]; const d=d8(from.slice(0,7)+'-01'), end=todayIso().slice(0,7);
+  while (iso(d).slice(0,7) <= end){ out.push(iso(d).slice(0,7)); d.setMonth(d.getMonth()+1); } return out; };
+const lastDay = m => { const d=d8(m+'-01'); d.setMonth(d.getMonth()+1); d.setDate(0); return iso(d); };
+/* Toutes les sorties connues, sans doublon (historique + sorties recuperees ou importees en .fit) */
+function allRuns(){
+  const out = [...histS().acts], seen = new Set(out.map(a=>a.id));
+  for (const a of S.acts){ if (a.iv && seen.has(a.iv)) continue;
+    if (!a.iv && out.some(x => x.date===a.date && Math.abs(x.km-a.km)<0.05)) continue; out.push(a); }
+  return out.sort((a,b)=>a.date.localeCompare(b.date));
+}
+/* Meilleurs segments detectes (hors segments ecartes par le coureur) */
+function histPerfs(){
+  const h = histS(), out = [];
+  for (const a of h.acts) if (a.best) for (const [k,sec] of Object.entries(a.best)){ const key=a.id+'|'+k; if (h.excl[key] || !HD[k]) continue;
+    out.push({id:key, date:a.date, km:HD[k][0], sec, l:HD[k][1], src:`meilleur ${HD[k][1]} dans « ${a.name||'sortie'} » (Intervals.icu)`, hist:true}); }
+  return out;
+}
+V.hist = null;
+window.histImport = async from => {
+  if (V.hist) return; const h = histS(), ms = monthsFrom(from);
+  V.hist = {i:0, n:ms.length}; render();
+  try {
+    for (const m of ms){
+      const d = await ivCall('history', {oldest:m+'-01', newest:lastDay(m)});
+      h.acts = h.acts.filter(a => a.date.slice(0,7) !== m).concat(d.acts || []);
+      h.months[m] = {n:(d.acts||[]).length, km:Math.round((d.acts||[]).reduce((a,x)=>a+x.km,0)*10)/10, stubs:d.stubs||0, others:d.others||0};
+      V.hist.i++; save(); render();
+    }
+    h.from = (!h.from || from < h.from) ? from : h.from; h.at = new Date().toISOString();
+    h.acts.sort((a,b)=>a.date.localeCompare(b.date)); save();
+    const strava = Object.values(h.months).reduce((a,x)=>a+x.stubs,0);
+    toast(`✓ ${h.acts.length} sorties importées${strava?` · ${strava} ignorées (Strava)`:''}`);
+  } catch(e){ console.warn(e); toast('Historique : '+e.message+' (import partiel conservé)'); save(); }
+  finally { V.hist = null; render(); }
+};
+window.histExcl = key => { const h=histS(); h.excl[key] = !h.excl[key]; if (!h.excl[key]) delete h.excl[key]; save(); render(); };
+window.histClear = () => { if (!confirm('Effacer l\'historique importé ? (tes séances et sorties du plan ne sont pas touchées)')) return; S.hist = null; save(); render(); };
+
+function Hist(){
+  const h = histS(), on = !!ivCode(), busy = V.hist, months = Object.keys(h.months).sort();
+  const tot = {n:h.acts.length, km:Math.round(h.acts.reduce((a,x)=>a+x.km,0)), strava:Object.values(h.months).reduce((a,x)=>a+x.stubs,0)};
+  const btn = (fn, label, bg, fg=C.text, dis) => `<button class="pill" style="background:${bg};color:${fg};padding:13px;flex:1${dis?';opacity:.45':''}" ${dis?'disabled':''} onclick="${fn}">${label}</button>`;
+  const mLab = m => MONTHS[+m.slice(5,7)-1]+' '+m.slice(0,4);
+  /* meilleurs segments : 3 par distance */
+  const segs = Object.keys(HD).map(k => ({k, list: h.acts.filter(a=>a.best&&a.best[k]).map(a=>({a, sec:a.best[k], key:a.id+'|'+k})).sort((x,y)=>x.sec-y.sec).slice(0,3)})).filter(x=>x.list.length);
+  const years = {}; for (const a of h.acts){ const y=a.date.slice(0,4); years[y]=years[y]||{n:0,km:0,long:null}; years[y].n++; years[y].km+=a.km; if(!years[y].long||a.km>years[y].long.km) years[y].long=a; }
+  return `<div class="pad">${head('Mon historique', 'Sorties course à pied lues dans Intervals.icu')}
+    ${!on ? `<div class="card"><p style="font-size:13px;color:var(--body)">Connecte d'abord Intervals.icu (Plus > Montre).</p></div>` : `
+    <div class="card"><div class="mono muted">Importer depuis</div>
+      <div class="row" style="gap:8px;margin-top:10px">${btn("histImport('2024-01-01')",'Janv. 2024',C.surface2,C.text,!!busy)}${btn("histImport('2025-01-01')",'Janv. 2025',C.teal,C.bg,!!busy)}</div>
+      ${busy?`<div class="bar" style="background:var(--surface-2);margin-top:12px"><i style="width:${Math.round(busy.i/busy.n*100)}%;background:${C.teal}"></i></div><div class="muted" style="font-size:12px;margin-top:6px">Mois ${busy.i}/${busy.n}…</div>`:''}
+      <p class="muted" style="font-size:11.5px;margin-top:10px">Un mois par requête, environ une minute pour deux ans. Les sorties importées ne changent rien au plan : elles servent au profil.</p></div>`}
+    ${tot.n ? `<div class="card"><div class="row" style="justify-content:space-between"><div class="mono muted">Contrôle</div><span class="muted" style="font-size:11.5px">${h.at?"mis à jour le "+shortDate(h.at.slice(0,10)):"import en cours"}</span></div>
+      <div class="grid3" style="margin-top:10px">${[['Sorties',tot.n],['Km',tot.km],['Strava ignorées',tot.strava]].map(([l,v])=>`<div><div class="muted" style="font-size:11.5px">${l}</div><div class="anton" style="font-size:26px;${l.startsWith('Strava')&&v?'color:'+C.amber:''}">${v}</div></div>`).join('')}</div>
+      ${tot.strava?`<p style="font-size:12.5px;color:${C.amber};margin-top:8px">Des sorties venues de Strava sont renvoyées vides par l'API d'Intervals.icu : MeRun ne peut pas les lire. Pour les récupérer, il faut qu'elles arrivent par Garmin ou par fichier .fit.</p>`:''}
+      <div style="margin-top:12px;font-size:13px">${months.map(m=>{ const x=h.months[m]; return `<div class="row" style="justify-content:space-between;padding:5px 0;border-top:1px solid var(--surface-2)${x.n?'':';color:'+C.amber}"><span>${mLab(m)}</span><span>${x.n} sortie${x.n>1?'s':''} · ${fmtN(x.km)} km${x.stubs?` · <b style="color:${C.amber}">${x.stubs} Strava</b>`:''}</span></div>`; }).join('')}</div></div>
+    <div class="card"><div class="mono muted">Par année</div>${Object.entries(years).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px"><b>${y}</b><span>${v.n} sorties · ${Math.round(v.km)} km · plus longue ${fmtN(v.long.km)} km</span></div>`).join('')}</div>
+    ${segs.length?`<div class="card"><div class="mono muted">Meilleurs segments détectés</div>
+      <p class="muted" style="font-size:11.5px;margin-top:4px">Calculés sur le GPS, pauses comprises. Un segment d'entraînement n'est pas une course : écarte ceux qui te paraissent faux, ils sortent alors du profil.</p>
+      ${segs.map(g=>`<div style="margin-top:10px"><div style="font-weight:800">${HD[g.k][1]}</div>${g.list.map(x=>{ const ex=!!h.excl[x.key]; return `<div class="row" style="justify-content:space-between;gap:8px;font-size:13px;margin-top:6px;${ex?'opacity:.45':''}"><span style="min-width:0"><b>${fmtHMS(x.sec)}</b> <span class="muted">(${fmtPace(Math.round(x.sec/HD[g.k][0]))}/km) · ${shortDate(x.a.date)} ${x.a.date.slice(0,4)} · ${esc(x.a.name||'')}</span></span><button class="pill" style="flex:none;padding:6px 10px;font-size:11.5px;background:${ex?C.surface2:'rgba(0,212,184,.16)'};color:${ex?C.muted:C.teal}" onclick="histExcl('${x.key}')">${ex?'écarté':'✓ utilisé'}</button></div>`; }).join('')}</div>`).join('')}</div>`:''}
+    <button class="pill" style="background:${C.surface};color:${C.pink};padding:12px" onclick="histClear()">Effacer l'historique importé</button>` : ''}
+  </div>`;
+}
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
