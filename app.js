@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.6 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.7 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.6';
+const APP_VERSION = 'v4.9.7';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.6 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.7 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.6 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.7 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1803,9 +1803,10 @@ window.histFile = () => { const inp = document.createElement('input'); inp.type=
       const h = histS(), n = histMerge(d.acts);
       for (const m of new Set([...Object.keys(d.months||{}), ...d.acts.map(a=>a.date.slice(0,7))])) histRecount(m);
       for (const [k,v] of Object.entries(d.excl||{})) if (v) h.excl[k] = true;
+      let y = 0; if (d.years && typeof d.years === 'object'){ h.years = {...(h.years||{}), ...d.years}; y = Object.keys(d.years).length; }
       let p = 0; for (const x of d.perfs||[]) if (!S.perfs.some(q => q.date===x.date && Math.abs(q.km-x.km) < 0.2)){ S.perfs.push({id:'f'+x.date+x.km, ...x}); p++; }
       h.from = (!h.from || (d.from && d.from < h.from)) ? (d.from || h.from) : h.from; h.at = new Date().toISOString(); save(); render();
-      toast(`✓ ${n} sortie(s) ajoutée(s)${d.acts.length-n?` · ${d.acts.length-n} déjà présente(s)`:''}${p?` · ${p} chrono(s) de référence`:''}`);
+      toast('✓ '+[d.acts.length?`${n} sortie(s) ajoutée(s)${d.acts.length-n?`, ${d.acts.length-n} déjà présente(s)`:''}`:'', y?`${y} année(s) d'archive`:'', p?`${p} chrono(s) de référence`:''].filter(Boolean).join(' · ') || '✓ Rien de nouveau');
     } catch(e){ console.warn(e); toast('Fichier illisible'); } };
   inp.click(); };
 V.hist = null;
@@ -1852,7 +1853,9 @@ function Hist(){
       <div class="grid3" style="margin-top:10px">${[['Sorties',tot.n],['Km',tot.km],['Strava ignorées',tot.strava]].map(([l,v])=>`<div><div class="muted" style="font-size:11.5px">${l}</div><div class="anton" style="font-size:26px;${l.startsWith('Strava')&&v?'color:'+C.amber:''}">${v}</div></div>`).join('')}</div>
       ${tot.strava?`<p style="font-size:12.5px;color:${C.amber};margin-top:8px">Des sorties venues de Strava sont renvoyées vides par l'API d'Intervals.icu : MeRun ne peut pas les lire. Pour les récupérer, il faut qu'elles arrivent par Garmin ou par fichier .fit.</p>`:''}
       <div style="margin-top:12px;font-size:13px">${months.map(m=>{ const x=h.months[m]; return `<div class="row" style="justify-content:space-between;padding:5px 0;border-top:1px solid var(--surface-2)${x.n?'':';color:'+C.amber}"><span>${mLab(m)}</span><span>${x.n} sortie${x.n>1?'s':''} · ${fmtN(x.km)} km${x.stubs?` · <b style="color:${C.amber}">${x.stubs} Strava</b>`:''}</span></div>`; }).join('')}</div></div>
-    <div class="card"><div class="mono muted">Par année</div>${Object.entries(years).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px"><b>${y}</b><span>${v.n} sorties · ${Math.round(v.km)} km · plus longue ${fmtN(v.long.km)} km</span></div>`).join('')}</div>
+    <div class="card"><div class="mono muted">Par année</div>${Object.entries(years).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px"><b>${y}</b><span>${v.n} sorties · ${Math.round(v.km)} km · plus longue ${fmtN(v.long.km)} km</span></div>`).join('')}
+      ${Object.entries(h.years||{}).filter(([y])=>!years[y]).sort((a,b)=>b[0].localeCompare(a[0])).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px;color:var(--muted)"><b>${y}</b><span>${v.n} sorties · ${v.km} km · plus longue ${fmtN(v.long)} km</span></div>`).join('')}
+      ${h.years&&Object.keys(h.years).some(y=>!years[y])?`<p class="muted" style="font-size:11.5px;margin-top:8px">Années en gris : totaux d'archive (export Garmin), pour mémoire. Ils n'entrent pas dans le profil.</p>`:''}</div>
     ${segs.length?`<div class="card"><div class="mono muted">Meilleurs segments détectés</div>
       <p class="muted" style="font-size:11.5px;margin-top:4px">Calculés sur le GPS, pauses comprises. Un segment d'entraînement n'est pas une course : écarte ceux qui te paraissent faux, ils sortent alors du profil.</p>
       ${segs.map(g=>`<div style="margin-top:10px"><div style="font-weight:800">${HD[g.k][1]}</div>${g.list.map(x=>{ const ex=!!h.excl[x.key]; return `<div class="row" style="justify-content:space-between;gap:8px;font-size:13px;margin-top:6px;${ex?'opacity:.45':''}"><span style="min-width:0"><b>${fmtHMS(x.sec)}</b> <span class="muted">(${fmtPace(Math.round(x.sec/HD[g.k][0]))}/km) · ${shortDate(x.a.date)} ${x.a.date.slice(0,4)} · ${esc(x.a.name||'')}${S.perfs.some(p=>p.date===x.a.date&&Math.abs(p.km-HD[g.k][0])<=HD[g.k][0]*0.1)?' · déjà dans tes chronos de référence':''}</span></span><button class="pill" style="flex:none;padding:6px 10px;font-size:11.5px;background:${ex?C.surface2:'rgba(0,212,184,.16)'};color:${ex?C.muted:C.teal}" onclick="histExcl('${x.key}')">${ex?'écarté':'✓ utilisé'}</button></div>`; }).join('')}</div>`).join('')}</div>`:''}
