@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.7 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.8 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.7';
+const APP_VERSION = 'v4.9.8';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.7 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.8 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.7 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.8 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -1832,6 +1832,25 @@ window.histImport = async from => {
 window.histExcl = key => { const h=histS(); h.excl[key] = !h.excl[key]; if (!h.excl[key]) delete h.excl[key]; save(); render(); };
 window.histClear = () => { if (!confirm('Effacer l\'historique importé ? (tes séances et sorties du plan ne sont pas touchées)')) return; S.hist = null; save(); render(); };
 
+/* Tableau visuel par annee : barres proportionnelles aux km, archive (avant les sorties detaillees) en gris */
+function histYearTable(years, arch){
+  const rows = {};
+  for (const [y,v] of Object.entries(arch)) rows[y] = {n:v.n, km:v.km, long:v.long, arch:true};
+  for (const [y,v] of Object.entries(years)) rows[y] = {n:v.n, km:Math.round(v.km), long:v.long?v.long.km:0, arch:false};
+  const ys = Object.keys(rows).sort(); if (!ys.length) return '';
+  const max = Math.max(...ys.map(y=>rows[y].km)), best = ys.reduce((a,y)=>rows[y].km>rows[a].km?y:a, ys[0]);
+  const cur = todayIso().slice(0,4);
+  return `<div class="card"><div class="mono muted">Par année</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;table-layout:fixed"><colgroup><col style="width:44px"><col><col style="width:54px"><col style="width:78px"></colgroup>
+      <thead><tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0;font-weight:600">Année</th><th style="font-weight:600">Volume</th><th style="text-align:right;font-weight:600">Sorties</th><th style="text-align:right;font-weight:600">Plus longue</th></tr></thead>
+      <tbody>${ys.map(y=>{ const r=rows[y], col = r.arch ? 'rgba(154,163,178,.45)' : y===cur ? C.orange : C.teal;
+        return `<tr style="border-top:1px solid var(--surface-2);${r.arch?'color:var(--muted)':''}">
+          <td style="padding:8px 8px 8px 0;font-weight:800;width:44px">${y}</td>
+          <td style="padding:8px 8px 8px 0"><div style="display:grid;grid-template-columns:1fr 66px;align-items:center;gap:6px"><div style="height:10px"><span style="display:block;height:10px;border-radius:5px;background:${col};width:${Math.max(2,Math.round(r.km/max*100))}%"></span></div><span style="white-space:nowrap;font-weight:700">${r.km} km${y===best?' ★':''}</span></div></td>
+          <td style="text-align:right;padding:8px 0">${r.n}</td>
+          <td style="text-align:right;padding:8px 0;white-space:nowrap">${fmtN(r.long)} km</td></tr>`; }).join('')}</tbody></table>
+    <p class="muted" style="font-size:11.5px;margin-top:8px">${ys.some(y=>rows[y].arch)?'Gris : archive (totaux de l\'export Garmin), pour mémoire, hors profil. ':''}${ys.includes(cur)?cur+' en orange : année en cours. ':''}★ : ta plus grosse année.</p></div>`;
+}
 function Hist(){
   const h = histS(), on = !!ivCode(), busy = V.hist, months = Object.keys(h.months).sort();
   const tot = {n:h.acts.length, km:Math.round(h.acts.reduce((a,x)=>a+x.km,0)), strava:Object.values(h.months).reduce((a,x)=>a+x.stubs,0)};
@@ -1853,9 +1872,7 @@ function Hist(){
       <div class="grid3" style="margin-top:10px">${[['Sorties',tot.n],['Km',tot.km],['Strava ignorées',tot.strava]].map(([l,v])=>`<div><div class="muted" style="font-size:11.5px">${l}</div><div class="anton" style="font-size:26px;${l.startsWith('Strava')&&v?'color:'+C.amber:''}">${v}</div></div>`).join('')}</div>
       ${tot.strava?`<p style="font-size:12.5px;color:${C.amber};margin-top:8px">Des sorties venues de Strava sont renvoyées vides par l'API d'Intervals.icu : MeRun ne peut pas les lire. Pour les récupérer, il faut qu'elles arrivent par Garmin ou par fichier .fit.</p>`:''}
       <div style="margin-top:12px;font-size:13px">${months.map(m=>{ const x=h.months[m]; return `<div class="row" style="justify-content:space-between;padding:5px 0;border-top:1px solid var(--surface-2)${x.n?'':';color:'+C.amber}"><span>${mLab(m)}</span><span>${x.n} sortie${x.n>1?'s':''} · ${fmtN(x.km)} km${x.stubs?` · <b style="color:${C.amber}">${x.stubs} Strava</b>`:''}</span></div>`; }).join('')}</div></div>
-    <div class="card"><div class="mono muted">Par année</div>${Object.entries(years).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px"><b>${y}</b><span>${v.n} sorties · ${Math.round(v.km)} km · plus longue ${fmtN(v.long.km)} km</span></div>`).join('')}
-      ${Object.entries(h.years||{}).filter(([y])=>!years[y]).sort((a,b)=>b[0].localeCompare(a[0])).map(([y,v])=>`<div class="row" style="justify-content:space-between;margin-top:8px;font-size:13.5px;color:var(--muted)"><b>${y}</b><span>${v.n} sorties · ${v.km} km · plus longue ${fmtN(v.long)} km</span></div>`).join('')}
-      ${h.years&&Object.keys(h.years).some(y=>!years[y])?`<p class="muted" style="font-size:11.5px;margin-top:8px">Années en gris : totaux d'archive (export Garmin), pour mémoire. Ils n'entrent pas dans le profil.</p>`:''}</div>
+    ${histYearTable(years, h.years||{})}
     ${segs.length?`<div class="card"><div class="mono muted">Meilleurs segments détectés</div>
       <p class="muted" style="font-size:11.5px;margin-top:4px">Calculés sur le GPS, pauses comprises. Un segment d'entraînement n'est pas une course : écarte ceux qui te paraissent faux, ils sortent alors du profil.</p>
       ${segs.map(g=>`<div style="margin-top:10px"><div style="font-weight:800">${HD[g.k][1]}</div>${g.list.map(x=>{ const ex=!!h.excl[x.key]; return `<div class="row" style="justify-content:space-between;gap:8px;font-size:13px;margin-top:6px;${ex?'opacity:.45':''}"><span style="min-width:0"><b>${fmtHMS(x.sec)}</b> <span class="muted">(${fmtPace(Math.round(x.sec/HD[g.k][0]))}/km) · ${shortDate(x.a.date)} ${x.a.date.slice(0,4)} · ${esc(x.a.name||'')}${S.perfs.some(p=>p.date===x.a.date&&Math.abs(p.km-HD[g.k][0])<=HD[g.k][0]*0.1)?' · déjà dans tes chronos de référence':''}</span></span><button class="pill" style="flex:none;padding:6px 10px;font-size:11.5px;background:${ex?C.surface2:'rgba(0,212,184,.16)'};color:${ex?C.muted:C.teal}" onclick="histExcl('${x.key}')">${ex?'écarté':'✓ utilisé'}</button></div>`; }).join('')}</div>`).join('')}</div>`:''}
