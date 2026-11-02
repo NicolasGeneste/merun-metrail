@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.2 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.1';
+const APP_VERSION = 'v4.9.2';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.2 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -495,7 +495,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.1 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.2 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -528,10 +528,9 @@ function Plan(){
     ${adj ? adjBanner(adj) : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
     <div style="display:flex;flex-direction:column;gap:10px">${items.trim()||`<div class="card"><p style="color:var(--body)">${esc(w.title)}. Aucune séance programmée.</p></div>`}</div>
-    ${ivCode() && w.sessions.some(ivSendable) ? `<button class="pill" style="background:${C.orange};color:${C.bg};padding:15px" ${V.ivBusy?'disabled':''} onclick="ivSendWeek(${w.num})">${V.ivBusy==='push'?'Envoi…':'Envoyer la semaine sur ma montre'}${w.sessions.some(s=>ivSendable(s)&&ivStatus(s)==='stale')?' (plan ajusté)':''}</button>` : ''}
-    <div class="row" style="gap:8px">
+    ${ivCode() ? '' : `<div class="row" style="gap:8px">
       <button class="pill" style="flex:1;background:${C.text};color:${C.bg}" onclick="exportWeek(${w.num})">Semaine vers Garmin (.zip)</button>
-      <button class="pill" style="background:${C.surface}" onclick="exportAll()">Plan complet</button></div>
+      <button class="pill" style="background:${C.surface}" onclick="exportAll()">Plan complet</button></div>`}
     <div class="card"><div class="mono muted" style="margin-bottom:14px">Le parcours · ${NW} semaines dès le ${shortDate(OFF_START)} · ${Math.round(TOTAL_KM)} km</div>
       <div class="hist" role="group" aria-label="Volume par semaine">${OFF.map(x => { const dk=Math.min(x.km, realWeek(x).km);
       return `<button aria-label="Semaine ${x.num}, ${x.km} km" onclick="V.week=${x.num};render()" style="height:${Math.max(4,x.km/max*100)}%;background:${BLOC[x.bloc].c};opacity:${x.num===w.num?1:.45}">
@@ -603,7 +602,7 @@ function Detail({code}){
         <div class="row" style="gap:8px;margin-top:12px"><button class="pill" style="background:rgba(10,14,20,.15);flex:1" onclick="startFlow('${code}')">Modifier mon retour</button><button class="pill" style="background:rgba(10,14,20,.15)" onclick="undo('${code}')">Annuler</button></div></div>`
     : `<button class="pill" style="background:${C.text};color:${C.bg};padding:17px;font-size:15px" onclick="startFlow('${code}')">Valider ma séance</button>`}
     ${ivDetailBlock(s)}
-    <button class="pill" style="background:${C.surface};padding:16px" onclick="exportOne('${code}')">Envoyer au Garmin (.fit)</button>
+    ${ivCode() ? '' : `<button class="pill" style="background:${C.surface};padding:16px" onclick="exportOne('${code}')">Envoyer au Garmin (.fit)</button>`}
     ${frozen(s)||s.kind==='q'?'':`<button class="card row" style="text-align:left" onclick="V.routine='M1';tReset(true);go('ppg')"><span class="kdot" style="background:${C.teal}">${ico('reset',20)}</span><span style="flex:1"><span style="font-weight:800;display:block">Mobilité après course</span><span class="muted" style="font-size:12.5px">Jambes · 5 mouvements · 10 min</span></span>${ico('next',18)}</button>`}
   </div>`;
 }
@@ -1394,7 +1393,7 @@ const LAYER = {
         <div class="field"><span>FC max</span><input inputmode="numeric" value="${S.fcmax}" onchange="S.fcmax=+this.value||S.fcmax;save();render()"></div>
         <div class="field"><span>Début du plan</span><span class="muted">lun. 5 oct. 2026</span></div><div class="field" style="border:0"><span>Marathon</span><span class="muted">dim. 4 avr. 2027</span></div></div>
       <div class="card">${tg('beeps','Bips PPG')}</div>
-      <button class="pill" style="background:${C.text};color:${C.bg}" onclick="exportAll()">Exporter tout le plan (.zip .fit)</button>
+      <button class="pill" style="background:${C.text};color:${C.bg}" onclick="exportAll()">Secours sans Intervals.icu : exporter le plan (.fit)</button>
       <button class="pill" style="background:${C.surface}" onclick="backup()">Sauvegarder mes données (.json)</button>
       <button class="pill" style="background:${C.surface}" onclick="$('#restoreIn').click()">Restaurer une sauvegarde</button><input type="file" id="restoreIn" accept=".json" hidden onchange="restore(this)">
       <button class="pill" style="color:${C.pink}" onclick="if(confirm('Effacer séances validées, retours, allègements, PPG et activités importées ?')){S.done={};S.ppgDone=[];S.mobDone=[];S.acts=[];S.fb={};S.adj=[];S.wk={};applyWeekPrefs();if(S.iv){S.iv.sent={};S.iv.lastPull=null;}save();render();toast('↺ Progression réinitialisée')}">Réinitialiser la progression</button></div>`; },
@@ -1485,9 +1484,15 @@ async function ivPush(list, silent){
 }
 window.ivSendOne = code => ivRun('push', () => ivPush([ALL.find(s=>s.code===code)]));
 window.ivSendWeek = num => ivRun('push', () => ivPush(PLAN.find(w=>w.num===num).sessions));
+window.ivSyncNow = () => { ivState().lastAuto = 0; return ivAuto(true); };
 window.ivSendNext = () => ivRun('push', () => { const t=todayIso(), lim=iso(new Date(Date.now()+7*864e5)); return ivPush(ALL.filter(s=>s.date>=t && s.date<=lim)); });
-window.ivRemove = code => ivRun('del', async () => { const x = ivState().sent[code]; if (!x) return;
-  await ivCall('delete', {ids:[x.id]}); delete ivState().sent[code]; save(); toast('Séance retirée du calendrier Intervals.icu'); });
+window.ivRemove = code => ivRun('del', async () => { const st = ivState(), x = st.sent[code]; st.skip = st.skip || {}; st.skip[code] = true;
+  if (x){ await ivCall('delete', {ids:[x.id]}); delete st.sent[code]; } save(); toast('Séance retirée de la montre (plus d\'envoi automatique)'); });
+window.ivRestore = code => { const st = ivState(); if (st.skip) delete st.skip[code]; save(); ivRun('push', () => ivPush([ALL.find(s=>s.code===code)])); };
+/* v4.9.2 : envoi automatique des seances des 7 prochains jours (hors seances retirees a la main) */
+const IV_AHEAD = 7;
+const ivDue = () => { const lim = iso(new Date(Date.now()+IV_AHEAD*864e5)), sk = ivState().skip || {};
+  return ALL.filter(s => ivSendable(s) && s.date <= lim && !sk[s.code] && (!ivState().sent[s.code] || ivStatus(s)==='stale')); };
 
 /* Retour : sorties course a pied, dedoublonnees avec les .fit deja importes */
 async function ivPull(silent){
@@ -1510,15 +1515,17 @@ window.ivPullNow = () => ivRun('pull', () => ivPull(false));
 
 /* Synchro automatique a l'ouverture (toutes les 3 h au plus) : recupere les sorties
    et renvoie les seances deja envoyees dont le plan a ete ajuste (allegement, etc.) */
-async function ivAuto(){
-  const st = ivState(); if (!ivCode() || !st.auto || V.ivBusy || !navigator.onLine) return;
-  if (st.lastAuto && Date.now() - st.lastAuto < 3*3600e3) return;
+async function ivAuto(force){
+  const st = ivState(); if (!ivCode() || (!st.auto && !force) || V.ivBusy || !navigator.onLine) return;
+  if (!force && st.lastAuto && Date.now() - st.lastAuto < 3*3600e3) return;
   st.lastAuto = Date.now(); save();
   try {
     if (!st.checked || Date.now() - Date.parse(st.checked) > 864e5){ try { const d = await ivCall('ping'); st.run = d.run || null; st.checked = new Date().toISOString(); save(); } catch(e){} }
     await ivPull(true);
-    const stale = ALL.filter(s => ivSendable(s) && ivStatus(s)==='stale');
-    if (stale.length){ await ivPush(stale, true); toast(`✓ ${stale.length} séance(s) ajustée(s) renvoyée(s) vers la montre`); }
+    const sk = st.skip || {}, stale = ALL.filter(s => ivSendable(s) && ivStatus(s)==='stale' && !sk[s.code]);
+    const due = ivDue().filter(s => !stale.includes(s)), todo = [...stale, ...due];
+    if (todo.length){ await ivPush(todo, true); toast(`✓ Montre à jour : ${due.length?due.length+' nouvelle(s)':''}${due.length&&stale.length?', ':''}${stale.length?stale.length+' ajustée(s)':''}`); }
+    else if (force) toast('✓ Montre déjà à jour');
     render();
   } catch(e){ console.warn('synchro auto', e); }
 }
@@ -1565,12 +1572,12 @@ function Montre(){
     ${on ? `<div class="card"><div class="mono muted">Synchronisation</div>
       <div class="muted" style="font-size:12.5px;margin:6px 0 12px">${nSent} séance(s) envoyée(s)${st.lastPush?' · dernier envoi '+shortDate(st.lastPush.slice(0,10)):''}${st.lastPull?' · sorties lues le '+shortDate(st.lastPull):''}${stale?` · <b style="color:${C.amber}">${stale} à renvoyer (plan ajusté)</b>`:''}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${btn('ivSendNext()', b==='push'?'Envoi…':'Envoyer les 7 prochains jours', C.orange, C.bg, !!b)}
+        ${btn('ivSyncNow()', b?'Synchronisation…':'Synchroniser maintenant', C.orange, C.bg, !!b)}
         ${btn('ivPullNow()', b==='pull'?'Lecture…':'Récupérer mes sorties', C.surface2, C.text, !!b)}
         ${btn("openLayer('hist')", 'Mon historique', C.surface2, C.text, !!b)}
         ${nSent ? btn('ivResendAll()', b==='push'?'Envoi…':'Tout renvoyer (supprime et recrée)', C.surface2, C.text, !!b) : ''}</div>
       <div class="field" style="margin-top:10px"><span>Synchro auto à l'ouverture</span><button class="tgl ${st.auto?'on':''}" aria-pressed="${!!st.auto}" onclick="ivState().auto=!ivState().auto;save();render()"></button></div>
-      <p class="muted" style="font-size:11.5px">Auto : toutes les 3 h au plus, récupère les sorties et renvoie les séances déjà envoyées que le plan adaptatif a modifiées. Les séances ne sont jamais validées automatiquement : c'est toi qui valides, avec ton ressenti et ton mood.</p></div>` : ''}
+      <p class="muted" style="font-size:11.5px">Auto, à l'ouverture de l'appli (toutes les 3 h au plus) : récupère tes sorties, envoie les séances des 7 prochains jours et renvoie celles que le plan a ajustées. « Retirer » sur une séance arrête son envoi. Les séances ne sont jamais validées automatiquement : c'est toi qui valides, avec ton ressenti et ton mood.</p></div>` : ''}
     <div class="card"><div class="mono muted">Mise en place (une fois)</div>
       <ol style="font-size:13px;color:var(--body);padding-left:18px;margin-top:8px">
         ${step(1,'Compte gratuit sur intervals.icu, puis relier Garmin Connect dans les réglages.')}
@@ -1586,14 +1593,19 @@ function Montre(){
 /* Bloc "montre" dans le detail d'une seance */
 function ivDetailBlock(s){
   if (!ivCode() || !ivSendable(s)) return '';
-  const stt = ivStatus(s), x = ivState().sent[s.code], b = V.ivBusy;
-  const msg = stt==='ok' ? `Sur Intervals.icu depuis le ${shortDate(x.at.slice(0,10))} · synchro Garmin automatique`
-    : stt==='stale' ? 'Le plan a changé depuis l\'envoi : renvoie la séance'
-    : stt==='err' ? 'Garmin a refusé : '+esc(x.err) : 'Pas encore envoyée sur la montre';
-  return `<div class="card" style="border:2px solid ${stt==='ok'?C.teal:stt?C.amber:C.surface2}"><div class="mono" style="color:${stt==='ok'?C.teal:stt?C.amber:C.muted}">Montre</div>
-    <div style="font-size:13px;margin:4px 0 10px">${msg}</div>
-    <div class="row" style="gap:8px"><button class="pill" style="flex:1;background:${stt==='ok'?C.surface2:C.orange};color:${stt==='ok'?C.text:C.bg}" ${b?'disabled':''} onclick="ivSendOne('${s.code}')">${b==='push'?'Envoi…':stt?'Renvoyer':'Envoyer sur ma montre'}</button>
-    ${stt?`<button class="pill" style="background:${C.surface2}" ${b?'disabled':''} onclick="ivRemove('${s.code}')">Retirer</button>`:''}</div></div>`;
+  const stt = ivStatus(s), x = ivState().sent[s.code], b = V.ivBusy, skip = (ivState().skip||{})[s.code];
+  const send = iso(new Date(d8(s.date).getTime() - IV_AHEAD*864e5));
+  const msg = skip ? 'Retirée de la montre à ta demande'
+    : stt==='ok' ? `Sur la montre (envoyée le ${shortDate(x.at.slice(0,10))}) · mise à jour automatique si le plan change`
+    : stt==='stale' ? 'Plan ajusté : renvoi automatique à la prochaine synchro'
+    : stt==='err' ? 'Garmin a refusé : '+esc(x.err)
+    : send > todayIso() ? `Envoi automatique à partir du ${shortDate(send)} (7 jours avant)` : 'Envoi automatique à la prochaine synchro';
+  const col = skip ? C.muted : stt==='ok' ? C.teal : stt==='err' ? C.pink : stt ? C.amber : C.muted;
+  return `<div class="card row" style="gap:10px;align-items:center"><span class="kdot" style="background:${C.surface2};color:${col}">${ico('activity',18)}</span>
+    <span style="flex:1;min-width:0;font-size:13px"><span class="mono" style="color:${col};display:block;font-size:10px">Montre</span>${msg}</span>
+    ${skip ? `<button class="pill" style="flex:none;padding:8px 12px;font-size:12px;background:${C.surface2}" ${b?'disabled':''} onclick="ivRestore('${s.code}')">Remettre</button>`
+      : stt==='err' ? `<button class="pill" style="flex:none;padding:8px 12px;font-size:12px;background:${C.surface2}" ${b?'disabled':''} onclick="ivSendOne('${s.code}')">Réessayer</button>`
+      : stt ? `<button class="pill" style="flex:none;padding:8px 12px;font-size:12px;background:${C.surface2}" ${b?'disabled':''} onclick="ivRemove('${s.code}')">Retirer</button>` : ''}</div>`;
 }
 
 /* ---------------- Ma semaine (v4.7) ----------------
