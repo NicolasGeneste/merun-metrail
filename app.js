@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.2 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.9.3 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.2';
+const APP_VERSION = 'v4.9.3';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.2 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.9.3 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -495,7 +495,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.2 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.9.3 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -524,6 +524,7 @@ function Plan(){
       ${moods.length?`<div class="muted" style="font-size:12px;margin-top:10px">Mood moyen ${fmtN(moods.reduce((a,x)=>a+x,0)/moods.length)} / 5 sur ${moods.length} séance(s)</div>`:''}
       <div class="row" style="gap:8px;margin-top:12px"><button class="pill" style="flex:1;background:${C.surface2};font-size:13px;padding:10px" onclick="openLayer('share',{week:${w.num}})">${ico('share',16)} Partager ma semaine</button>
         <button class="pill" style="background:${C.surface2};font-size:13px;padding:10px" onclick="openLayer('acts')">Activités</button></div>
+      <button class="pill" style="width:100%;margin-top:8px;background:${C.surface2};font-size:13px;padding:10px" onclick="bilanOpen(${w.num})">${ico('edit',16)} Mon bilan pour Claude</button>
     </div>
     ${adj ? adjBanner(adj) : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
@@ -1833,7 +1834,60 @@ function Hist(){
     <button class="pill" style="background:${C.surface};color:${C.pink};padding:12px" onclick="histClear()">Effacer l'historique importé</button>` : ''}
   </div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist});
+
+/* ---------------- Mon bilan pour Claude (v4.9.3) ----------------
+   Resume texte de la semaine affichee, a copier dans la conversation de coaching.
+   Rien n'est envoye nulle part : le texte est seulement copie dans le presse-papiers. */
+function bilanText(w){
+  const t = todayIso(), fmtD = d => DOW[WDAYS[(d8(d).getDay()+6)%7]]+' '+shortDate(d);
+  const z12 = z => { const s = z.reduce((a,x)=>a+x,0); return s ? Math.round((z[0]+z[1])/s*100) : null; };
+  const L = [];
+  const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), done = w.sessions.filter(isDone).length;
+  L.push(`MeRun · bilan ${wLab(w)} (${shortDate(w.start)} → ${shortDate(weekEnd(w))}) · bloc ${w.bloc} ${BLOC[w.bloc].n}`);
+  L.push(`Séances ${done}/${w.sessions.length} · ${fmtN(r.km)} km réalisés sur ${fmtN(pKm)} prévus${r.dur?' · '+fmtHM(r.dur):''}`);
+  const ws = wkSummary(w); if (ws) L.push(`Mes choix de la semaine : ${ws}`);
+  const adj = S.adj.filter(a => !a.off && a.to >= w.start && a.from <= weekEnd(w));
+  for (const a of adj) L.push(`Allègement -${Math.round((1-a.f)*100)} % du ${shortDate(a.from)} au ${shortDate(a.to)} : ${a.why}`);
+  L.push('');
+  let zt = 0, z12t = 0;
+  for (const s of w.sessions){
+    const fb = S.fb[s.code], a = actOf(s.code);
+    let line = `- ${fmtD(s.date)} · ${s.title} (prévu ${fmtN(isDone(s)?s.km:kmOf(s))} km${isDone(s)?'':', '+fmtDur(sessDur(s))})`;
+    if (isDone(s)){
+      const bits = [];
+      if (a){ bits.push(`${fmtN(a.km)} km`); if (a.dur) bits.push(fmtHMS(a.dur), fmtPace(Math.round(a.dur/a.km))+'/km'); if (a.hr) bits.push('FC moy '+a.hr);
+        if (a.zones){ const p = z12(a.zones); if (p!=null) bits.push(p+' % sous 150 bpm'); const s2=a.zones.reduce((x,y)=>x+y,0); zt+=s2; z12t+=a.zones[0]+a.zones[1]; } }
+      if (fb){ bits.push('ressenti '+(EFFORT[fb.effort]||'?')); if (fb.mood) bits.push(`mood ${fb.mood}/5 (${MOOD[fb.mood-1]})`);
+        if (fb.reasons && fb.reasons.length) bits.push('raisons : '+fb.reasons.map(x=>RLABEL[x]||x).join(', ')); if (fb.chrono) bits.push('chrono '+fmtHMS(fb.chrono));
+        if (fb.note) bits.push(`« ${fb.note} »`); }
+      line += ' → faite : ' + (bits.join(', ') || 'sans données');
+    } else line += s.date < t ? ' → non faite' : ' → à venir';
+    L.push(line);
+  }
+  const extra = S.acts.filter(a => !a.code && inWeek(a.date, w));
+  if (extra.length){ L.push(''); L.push('Sorties hors plan :');
+    for (const a of extra) L.push(`- ${fmtD(a.date)} · ${a.name||'sortie'} : ${fmtN(a.km)} km${a.dur?', '+fmtHMS(a.dur):''}${a.hr?', FC moy '+a.hr:''}${a.zones&&z12(a.zones)!=null?', '+z12(a.zones)+' % sous 150 bpm':''}`); }
+  for (const a of extra) if (a.zones){ zt += a.zones.reduce((x,y)=>x+y,0); z12t += a.zones[0]+a.zones[1]; }
+  L.push('');
+  if (zt) L.push(`Temps sous 150 bpm (SV1) sur la semaine : ${Math.round(z12t/zt*100)} % (cible du plan : environ 80 %)`);
+  const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
+  const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
+  L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
+  L.push(''); L.push('Ma question : ');
+  return L.join('\n');
+}
+window.bilanOpen = num => openLayer('bilan', {week:num});
+window.bilanCopy = async () => { const ta = $('#bilanTxt'); if (!ta) return;
+  try { await navigator.clipboard.writeText(ta.value); toast('✓ Bilan copié : colle-le dans ta conversation avec Claude'); }
+  catch(e){ ta.focus(); ta.select(); try { document.execCommand('copy'); toast('✓ Bilan copié'); } catch(_){ toast('Sélectionne le texte et copie-le'); } } };
+function Bilan(l){
+  const w = PLAN.find(x => x.num===l.week) || curWeek(), txt = bilanText(w);
+  return `<div class="pad">${head('Mon bilan', wLab(w)+' · à coller dans ta conversation avec Claude')}
+    <textarea id="bilanTxt" readonly style="width:100%;min-height:52vh;background:var(--surface);color:var(--text);border:0;border-radius:18px;padding:14px;font:13px/1.45 Inter,system-ui,sans-serif;resize:vertical">${esc(txt)}</textarea>
+    <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan</button>
+    <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié. Ajoute ta question à la fin, puis colle-le dans le projet « Entraînement » sur Claude.</p></div>`;
+}
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
