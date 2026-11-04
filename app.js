@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.10.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.10.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.10.0';
+const APP_VERSION = 'v4.10.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.10.0 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.10.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.10.0 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.10.1 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -568,10 +568,10 @@ function Detail({code}){
   const bands = [[wu,'Échauf.','EF'],[core,'Séance',mz],[cd,'Retour','RECUP']].filter(b=>b[0]>0);
   const lines=[]; for (const st of steps){
     if (st.rep){ lines.push(`<li><b>${st.rep} ×</b><span class="muted">${st.steps.map(x=>esc(x.n)+(paceLabel(x.z,s.bloc,S.vc)?' @ '+paceLabel(x.z,s.bloc,S.vc):'')).join(' / ')}</span></li>`); }
-    else lines.push(`<li><span>${esc(st.n)}${st.t&&adjFactor(s).f<1&&!frozen(s)&&st.k==='active'?' ('+fmtDur(st.t)+')':''}</span><span class="muted">${st.z==='OPEN'?'libre':st.z==='EFD'?'FC &lt; 145':paceLabel(st.z,s.bloc,S.vc)+' /km'}</span></li>`);
+    else lines.push(`<li><span>${esc(st.n)}${st.t&&adjFactor(s).f<1&&!frozen(s)&&st.k==='active'?' ('+fmtDur(st.t)+')':''}</span><span class="muted">${st.z==='OPEN'?'libre':st.z==='EFD'?'FC &lt; 145':st.z==='EF'?'FC &lt; 145 · repère '+paceLabel(st.z,s.bloc,S.vc):paceLabel(st.z,s.bloc,S.vc)+' /km'}</span></li>`);
   }
   const fb = S.fb[code], act = actOf(code), real = isDone(s) && act && act.km;
-  const planCells = [['KM',fmtN(kmOf(s))],['DURÉE',fmtDur(tot)],mz==='EFD'?['FC MAX','145']:['MIN/KM',mz==='OPEN'?'libre':(paceLabel(mz,s.bloc,S.vc)||'-')]];
+  const planCells = [['KM',fmtN(kmOf(s))],['DURÉE',fmtDur(tot)],(mz==='EFD'||mz==='EF')?['FC MAX','145']:['MIN/KM',mz==='OPEN'?'libre':(paceLabel(mz,s.bloc,S.vc)||'-')]];
   const cells = real ? [['KM',fmtN(act.km)],['DURÉE',act.dur?fmtHMS(act.dur):'-'],act.dur?['MIN/KM',fmtPace(Math.round(act.dur/act.km))]:['FC MOY',act.hr||'-']] : planCells;
   return `<div class="pad">
     <div style="background:${k.c};color:${C.bg};border-radius:30px;padding:16px 18px 20px">
@@ -699,6 +699,9 @@ window.commitFlow = () => {
   }
   if (fl.chrono && testDist(s)===5000){ S.perfs = S.perfs.filter(p=>p.id!=='t_'+s.code); S.perfs.push({id:'t_'+s.code, date:s.date, km:5, sec:fl.chrono, l:'5 km', src:'test du plan'}); }
   V.verdict = adapt(s);
+  /* v4.10.1 : footing ou sortie longue en endurance, mais moins de 50 % du temps sous SV1 (150 bpm) */
+  if (fl.zones && (s.kind==='foot'||s.kind==='sl') && ['EF','EFD'].includes(mainZone(s))){ const t = fl.zones.reduce((a,x)=>a+x,0), p = t ? Math.round((fl.zones[0]+fl.zones[1])/t*100) : null;
+    if (p !== null && p < 50) V.verdict = {...V.verdict, ef:{p, hr:fl.hr}, m:(V.verdict.m||'')+' Ton ressenti est bon, mais ta FC dit que c\'était trop intense.'}; }
   if (/_vc[12]$/.test(s.code)){ const r = vcFromTests(); if (r){ V.verdict.vc = r; V.verdict.t = 'TESTS VC TERMINÉS'; V.verdict.c = C.teal; } }
   save(); openLayer('verdict'); ivResync();
 };
@@ -743,6 +746,8 @@ function Verdict(){
     <svg viewBox="0 0 120 110" width="160" style="align-self:center;margin-bottom:auto;margin-top:40px" aria-hidden="true">${[[30,80],[60,80],[45,54],[75,54],[60,28]].map(([x,y],i)=>`<polygon points="${ptsStr(hexPts(x,y,15))}" fill="${C.bg}" fill-opacity="${i===4?1:.55}"/>`).join('')}</svg>
     <div class="mono">Charge</div><div class="anton" style="font-size:44px;line-height:1">${esc(v.t)}</div>
     <p style="font-size:15px;font-weight:700">${esc(v.m)}</p>
+    ${v.ef?`<div style="background:${C.bg};color:${C.text};border-radius:22px;padding:16px"><div class="mono" style="color:${C.amber}">Intensité trop haute pour un footing</div>
+      <p style="font-size:14px;margin-top:6px">Seulement <b>${v.ef.p} %</b> du temps sous 150 bpm (SV1)${v.ef.hr?`, FC moyenne ${v.ef.hr}`:''}. Une sortie d'endurance se court sous 145 bpm : la prochaine fois, ralentis dès que la montre dépasse 145, même si l'allure te semble lente, et marche dans les côtes si besoin.</p></div>`:''}
     ${v.vc?`<div style="background:${C.bg};color:${C.text};border-radius:22px;padding:16px"><div class="mono" style="color:${C.teal}">Vitesse critique calculée</div>
       <div class="row" style="align-items:baseline;gap:8px;margin-top:4px"><span class="anton" style="font-size:44px">${fmtN(v.vc.vc)}</span><span>km/h</span><span class="muted" style="font-size:13px">actuelle ${fmtN(S.vc)}</span></div>
       <p class="muted" style="font-size:12px;margin-top:4px">(${v.vc.b.d} - ${v.vc.a.d} m) / (${fmtHMS(v.vc.b.t)} - ${fmtHMS(v.vc.a.t)}) = ${fmtN(v.vc.raw*10/36)} m/s. Toutes les allures du plan seront recalculées.</p>
@@ -1430,17 +1435,25 @@ function ivTarget(z, bloc){
   const r = paceRange(z, bloc, S.vc); if (!r) return '';
   return r[0]===r[1] ? `${fmtPace(r[0])}/km Pace` : `${fmtPace(r[0])}/km-${fmtPace(r[1])}/km Pace`;
 }
-function ivLine(st, bloc){
+/* v4.10.1 : seances d'endurance (EF, recup, lignes droites) pilotees a la FC, plafond 145 bpm, en % de la FC max
+   reglee dans Intervals.icu. Les lignes droites n'ont pas de cible (a la sensation) : une seule sorte de cible par
+   seance, le melange FC + allure vers Garmin etant recent et incomplet (forum Intervals.icu, 07/2026).
+   Les seances de qualite gardent des allures partout. */
+const HR_ZONES = ['EF','EFD','RECUP','LIGNES','OPEN'];
+const ivHrMode = s => flatSteps(stepsOf(s), s.bloc, S.vc).every(x => HR_ZONES.includes(x.z));
+const ivHrCap = () => `55-${Math.floor(145/S.fcmax*100)}% HR`;
+function ivLine(st, bloc, hr, inRep){
   const amount = st.t ? ivDur(st.t) : st.d ? ivDist(st.d) : null;
   const cue = (IV_CUE[st.k] || ZLABEL[st.z] || 'Effort').replace(/\d/g,'').trim();
   if (!amount) return (st.n||cue).replace(/\b\d+x\b/gi,'');                 // etape libre sans duree : simple titre, pas d'etape
-  return `- ${cue} ${amount} ${ivTarget(st.z, bloc)}`.trim();
+  const tg = hr ? (['EF','EFD','RECUP'].includes(st.z) && !inRep ? ivHrCap() : '') : ivTarget(st.z, bloc);   // recup entre lignes : sans cible (FC encore haute)
+  return `- ${cue} ${amount} ${tg}`.trim();
 }
 function ivDescription(s){
-  const out = [];
+  const out = [], hr = ivHrMode(s);
   for (const st of stepsOf(s)){
-    if (st.rep){ out.push('', `${st.rep}x`, ...st.steps.map(x=>ivLine(x, s.bloc)), ''); }
-    else out.push(ivLine(st, s.bloc));
+    if (st.rep){ out.push('', `${st.rep}x`, ...st.steps.map(x=>ivLine(x, s.bloc, hr, true)), ''); }
+    else out.push(ivLine(st, s.bloc, hr));
   }
   return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
