@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.10.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.11.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.10.1';
+const APP_VERSION = 'v4.11.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.10.1 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.11.0 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.10.1 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.11.0 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -699,7 +699,7 @@ window.commitFlow = () => {
   }
   if (fl.chrono && testDist(s)===5000){ S.perfs = S.perfs.filter(p=>p.id!=='t_'+s.code); S.perfs.push({id:'t_'+s.code, date:s.date, km:5, sec:fl.chrono, l:'5 km', src:'test du plan'}); }
   V.verdict = adapt(s);
-  /* v4.10.1 : footing ou sortie longue en endurance, mais moins de 50 % du temps sous SV1 (150 bpm) */
+  /* v4.11.0 : footing ou sortie longue en endurance, mais moins de 50 % du temps sous SV1 (150 bpm) */
   if (fl.zones && (s.kind==='foot'||s.kind==='sl') && ['EF','EFD'].includes(mainZone(s))){ const t = fl.zones.reduce((a,x)=>a+x,0), p = t ? Math.round((fl.zones[0]+fl.zones[1])/t*100) : null;
     if (p !== null && p < 50) V.verdict = {...V.verdict, ef:{p, hr:fl.hr}, m:(V.verdict.m||'')+' Ton ressenti est bon, mais ta FC dit que c\'était trop intense.'}; }
   if (/_vc[12]$/.test(s.code)){ const r = vcFromTests(); if (r){ V.verdict.vc = r; V.verdict.t = 'TESTS VC TERMINÉS'; V.verdict.c = C.teal; } }
@@ -839,6 +839,47 @@ const ROUT = {
     ['Ischios assis, une jambe pliée',2,'40 s / côté',40,5,"Une jambe tendue, plante de l'autre pied contre la cuisse. Dos long, penche-toi sans tirer.",'Ischio-jambiers, mollets','passif',1],
     ['Torsion allongée',2,'45 s / côté',45,5,"Sur le côté, hanche et genou du dessus pliés à 90°, genou tenu au sol. Ouvre l'autre bras et laisse le dos tourner en expirant.",'Dos, pectoraux','passif',1],
     ['Prière (dorsaux)',1,'1 min 15',75,0,"À genoux, bras tendus devant, front posé, fesses vers les talons. Respiration lente, expiration plus longue que l'inspiration.",'Dorsaux, épaules','passif',0]]},
+  /* v4.11 : routines inspirees de l'enregistrement GOWOD du coureur (04/11/2026) : meme enchainement et memes durees,
+     consignes reecrites pour MeRun (aucun texte ni video GOWOD repris). */
+  M6:{mob:true,n:'Récupération course',sub:'Après une sortie · ~8 min · sans matériel',ex:[
+    ['Quadriceps au mur',2,'1 min / côté',60,5,"Genou au sol près du mur, dessus du pied posé contre le mur derrière toi. Buste droit, fesses serrées : l'étirement est devant la cuisse.",'Quadriceps','passif',1],
+    ['Ischios jambes tendues',1,'1 min',60,0,"Assis, jambes serrées et tendues. Laisse le dos s'arrondir et attrape tes pieds ou tes chevilles, sans tirer.",'Ischio-jambiers, dos','passif',0],
+    ['Papillon',1,'1 min',60,0,"Assis, plantes des pieds l'une contre l'autre, dos droit. Laisse les genoux descendre vers le sol.",'Adducteurs','passif',0],
+    ['Ouverture de hanche en fente',2,'1 min / côté',60,5,"Grande fente, main opposée au sol. Ouvre lentement le genou avant vers l'extérieur puis reviens, sans à-coups.",'Hanches','actif',1],
+    ['Pigeon',2,'1 min / côté',60,5,"Jambe avant pliée devant toi, jambe arrière tendue. Penche le buste vers l'avant et respire.",'Fessiers','passif',1]]},
+  M7:{mob:true,n:'Essentiels coureur',sub:'Prévention · ~8 min · rouleau de massage',ex:[
+    ['Quadriceps et flanc au mur',2,'1 min / côté',60,5,"Genou au sol contre le mur, fesses vers le talon, main derrière la tête. Penche-toi doucement du côté opposé, abdos serrés.",'Quadriceps, obliques, dorsaux','actif',1],
+    ['Arc-en-ciel assis au mur',1,'1 min',60,0,"Dos contre le mur, jambes écartées. Passe un bras au-dessus de la tête en te penchant d'un côté, puis de l'autre, en rythme.",'Bras, épaules, flancs','actif',0],
+    ['Rouleau bas du dos',1,'1 min',60,0,"Rouleau sous les lombaires, pieds au sol. Roule lentement d'avant en arrière, appui modéré : tu dois pouvoir rester détendu.",'Lombaires','massage',0],
+    ['Fente du chevalier',2,'1 min / côté',60,5,"Grande fente, genou arrière au sol, buste droit. Rentre le nombril, serre les fessiers et descends le bassin.",'Psoas, avant de la cuisse','passif',1],
+    ['Ischios jambes tendues',1,'2 min',120,0,"Assis, jambes serrées et tendues, dos relâché. Attrape tes pieds et respire lentement.",'Ischio-jambiers, dos','passif',0]]},
+  M8:{mob:true,n:'Flow hanches',sub:'Jour de repos · ~8 min · sans matériel',ex:[
+    ['Rotation de hanche à genoux',2,'1 min / côté',60,5,"À quatre pattes, une jambe tendue sur le côté, talon au sol. Fais tourner lentement la jambe tendue dans l'axe de la hanche.",'Hanches, adducteurs','actif',1],
+    ['Fente puis ischios',2,'1 min / côté',60,5,"Alterne lentement : fente, buste droit, puis recule le bassin en tendant la jambe avant, buste penché vers le pied.",'Psoas, ischios','actif',1],
+    ['Chien tête en bas, jambe levée',1,'1 min',60,0,"Mains et pieds au sol, bassin haut, talons vers le sol. Lève une jambe dans le prolongement du buste, puis l'autre.",'Ischios, mollets, épaules','actif',0],
+    ['Cobra actif',1,'1 min',60,0,"Allongé sur le ventre, mains sous les épaules. Redresse le buste en poussant sur les mains, puis redescends, en douceur.",'Abdos, bas du dos','actif',0],
+    ['Torsion allongée alternée',1,'1 min',60,0,"Sur le dos, ramène un genou plié de l'autre côté jusqu'au sol, bras opposé étendu. Change de côté lentement.",'Fessiers, dos, pectoraux','actif',0],
+    ['Papillon',1,'1 min',60,0,"Assis, plantes des pieds l'une contre l'autre, dos droit. Laisse les genoux descendre.",'Adducteurs','passif',0]]},
+  M9:{mob:true,n:'Flow dos',sub:'Le soir · ~9 min · sans matériel',ex:[
+    ['Écart assis',1,'2 min',120,0,"Jambes écartées sans douleur, dos arrondi. Avance les mains au sol le plus loin possible, en respirant.",'Adducteurs, ischios','passif',0],
+    ['Chien tête en bas vers cobra',1,'1 min',60,0,"Passe lentement du chien tête en bas (bassin haut, jambes tendues) au cobra (bassin au sol, buste relevé), puis reviens.",'Ischios, épaules, abdos','actif',0],
+    ['Torsion assise',2,'1 min / côté',60,5,"Assis, un pied posé à l'extérieur de la cuisse opposée. Le bras opposé passe devant le genou et aide la torsion, dos long.",'Fessiers, dos','passif',1],
+    ['Mobilité des omoplates',1,'1 min',60,0,"À quatre pattes, bras tendus. Laisse le thorax descendre entre les épaules, puis repousse le sol pour remonter.",'Haut du dos, épaules','actif',0],
+    ['Chat-vache',1,'1 min',60,0,"À quatre pattes, enroule le dos en expirant, creuse-le en inspirant. Lentement.",'Dos','actif',0],
+    ['De 0 à 90',2,'1 min / côté',60,5,"Assis, une jambe tendue devant. Soulève-la et ramène la cuisse à 90° en pliant le genou, pose le pied, puis redresse le buste.",'Hanches','actif',1]]},
+  M10:{mob:true,n:'Bureau',sub:'Après une journée assis · ~7 min · sans matériel',ex:[
+    ['Torsion allongée alternée',1,'1 min',60,0,"Sur le dos, ramène un genou plié de l'autre côté jusqu'au sol, bras opposé étendu. Change de côté lentement.",'Fessiers, dos, pectoraux','actif',0],
+    ['Écart assis',1,'1 min',60,0,"Jambes écartées sans douleur, dos arrondi, mains vers l'avant.",'Adducteurs, ischios','passif',0],
+    ['Ouverture en T',2,'1 min / côté',60,5,"Fente avant, genou vers l'extérieur. Pose le coude au sol à l'intérieur du pied, puis ouvre le bras vers le plafond en suivant du regard.",'Hanches, haut du dos','actif',1],
+    ['Prière (dorsaux)',1,'1 min',60,0,"À genoux, fesses sur les talons, bras tendus, paumes au sol, tête dans l'axe.",'Dos, bras','passif',0],
+    ['Ischios jambes tendues',1,'2 min',120,0,"Assis, jambes serrées et tendues, dos relâché. Attrape tes pieds et respire lentement.",'Ischio-jambiers, dos','passif',0]]},
+  M11:{mob:true,n:'Activation course',sub:'Avant une séance · ~6 min · dynamique',ex:[
+    ['Squat profond actif',1,'1 min',60,0,"Squat bas, buste droit, abdos serrés. Bascule un genou vers le sol en pivotant sur le pied, puis l'autre.",'Hanches, cuisses','actif',0],
+    ['V debout actif',1,'1 min',60,0,"Debout, jambes tendues et écartées : touche une pointe de pied avec les deux mains, puis l'autre, en rythme.",'Ischios, adducteurs','actif',0],
+    ['Squat cosaque',1,'1 min',60,0,"Jambes très écartées : descends sur une jambe, talon au sol, l'autre jambe tendue. Passe lentement d'un côté à l'autre.",'Intérieur des cuisses','actif',0],
+    ['Ouverture de hanche debout',1,'1 min',60,0,"Debout, abdos serrés : monte le genou à 90°, ouvre-le vers l'extérieur, repose le pied. Alterne les côtés.",'Hanches','actif',0],
+    ['Ischios dynamiques',1,'1 min',60,0,"Debout, monte le genou à 90° puis tends la jambe au maximum, contrôlé. Change de jambe à chaque répétition.",'Ischio-jambiers','actif',0],
+    ['Mollets sur une jambe',1,'1 min',60,0,"Mains contre un mur : monte sur la pointe des pieds, lève un pied, puis redescends lentement le talon de la jambe d'appui. Alterne.",'Mollets','actif',0]]},
 };
 /* v4.5 : demo de chaque mouvement (pages video de kines : Physitrack, The Prehab Guys, Rehab Hero ;
    recherche YouTube quand aucune page n'a ete trouvee) + videos perso stockees en local (IndexedDB, jamais envoyees). */
@@ -868,6 +909,27 @@ const MOB_LINK = {
   'Fente bras levés':[PT+'psoas-stretch','Physitrack'],
   'Table inversée':[PT+'reverse-plank-bridge','Physitrack'],
   'Ouverture thoracique':[PT+'thoracic-rotation---kneeling','Physitrack'],
+  'Quadriceps au mur':[YT+'couch+stretch+quadriceps+wall','YouTube (recherche)'],
+  'Ischios jambes tendues':[PT+'seated-hurdler-stretch','Physitrack'],
+  'Ouverture de hanche en fente':[YT+'lunge+hip+opener+knee+out+stretch','YouTube (recherche)'],
+  'Quadriceps et flanc au mur':[YT+'kneeling+quad+stretch+side+bend+wall','YouTube (recherche)'],
+  'Arc-en-ciel assis au mur':[YT+'seated+side+bend+stretch+wall+straddle','YouTube (recherche)'],
+  'Rouleau bas du dos':[YT+'foam+roller+lower+back','YouTube (recherche)'],
+  'Fente du chevalier':['https://au.physitrack.com/home-exercise-video/half-kneeling-hip-flexor-stretch','Physitrack'],
+  'Rotation de hanche à genoux':[YT+'kneeling+adductor+rock+leg+rotation+mobility','YouTube (recherche)'],
+  'Fente puis ischios':[YT+'lunge+to+hamstring+stretch+dynamic','YouTube (recherche)'],
+  'Chien tête en bas, jambe levée':[YT+'three+legged+downward+dog','YouTube (recherche)'],
+  'Cobra actif':['https://nz.physitrack.com/home-exercise-video/cobra-stretch','Physitrack'],
+  'Torsion allongée alternée':[YT+'supine+spinal+twist+alternating+windshield+wiper','YouTube (recherche)'],
+  'Chien tête en bas vers cobra':[YT+'downward+dog+to+cobra','YouTube (recherche)'],
+  'Torsion assise':[YT+'seated+spinal+twist+stretch','YouTube (recherche)'],
+  'Mobilité des omoplates':[YT+'quadruped+scapular+push+up','YouTube (recherche)'],
+  'De 0 à 90':[YT+'90+90+hip+mobility+leg+lift','YouTube (recherche)'],
+  'Ouverture en T':[YT+'lunge+elbow+to+instep+thoracic+rotation','YouTube (recherche)'],
+  'Squat cosaque':[YT+'cossack+squat','YouTube (recherche)'],
+  'Ouverture de hanche debout':[YT+'standing+hip+opener+knee+circle','YouTube (recherche)'],
+  'Ischios dynamiques':[YT+'dynamic+hamstring+kick+standing','YouTube (recherche)'],
+  'Mollets sur une jambe':[YT+'single+leg+calf+raise+eccentric+wall','YouTube (recherche)'],
 };
 /* Videos perso : base IndexedDB "merun_media", magasin "vids", cle = nom du mouvement. */
 const VID = { db:null, has:new Set(), url:{} };
@@ -910,7 +972,8 @@ function PPG(){
   return `<div class="pad">
     <div class="seg teal">${[['renfo','Renfo','P1'],['mob','Mobilité','M1']].map(([k,l,def])=>`<button class="${(k==='mob')===mob?'on':''}" onclick="setRoutine('${(k==='mob')===mob?V.routine:def}')">${l}</button>`).join('')}</div>
     <div><div class="anton h1">${mob?'Mobilité':'Renfo'}</div><div class="muted" style="font-size:12.5px;margin-top:5px">${ROUT[V.routine].sub}${mob?'':" · durées d'effort indicatives"}</div></div>
-    <div class="seg" style="flex-wrap:wrap">${list.map(([k,r])=>`<button class="${V.routine===k?'on':''}" onclick="setRoutine('${k}')">${r.n}</button>`).join('')}</div>
+    ${mob ? `<div class="grid2" style="gap:8px">${list.map(([k,r])=>`<button style="text-align:left;padding:11px 12px;border-radius:16px;background:${V.routine===k?C.teal:'var(--surface)'};color:${V.routine===k?C.bg:'inherit'}" onclick="setRoutine('${k}')"><span style="font-weight:800;font-size:13.5px;display:block">${r.n}</span><span style="font-size:11px;opacity:.75">${r.sub.split(' · ').slice(-2).join(' · ')}</span></button>`).join('')}</div>`
+      : `<div class="seg" style="flex-wrap:wrap">${list.map(([k,r])=>`<button class="${V.routine===k?'on':''}" onclick="setRoutine('${k}')">${r.n}</button>`).join('')}</div>`}
     <div class="ring" id="ring"><div><div class="mono muted" id="tPhase"></div><div class="anton" style="font-size:66px;line-height:1" id="tTime"></div>
       <div style="font-size:13px;max-width:170px;margin:4px auto 0" id="tEx"></div><div class="mono muted" style="margin-top:6px" id="tSet"></div></div></div>
     <div class="ctl"><button onclick="tReset()" aria-label="Réinitialiser">${ico('reset')}</button><button class="main" id="tPlay" onclick="tToggle()" aria-label="Lecture / pause"></button><button onclick="tSkip()" aria-label="Passer">${ico('skip')}</button></div>
@@ -918,7 +981,7 @@ function PPG(){
     ${mob?`<p class="muted" style="font-size:12.5px">${ex.length} mouvements · ${Math.round(tot/60)} min · ${ex.some(e=>e[7]==='passif')?'tenir sans à-coups, respiration lente':'mouvements contrôlés, sans forcer'}</p>`:''}
     <div style="display:flex;flex-direction:column;gap:8px">${ex.map((e,i)=>`<div class="ex" id="ex${i}"><div class="anton" style="font-size:22px;color:var(--${mob?'teal':'orange'});width:22px">${i+1}</div>
       <div style="flex:1"><div style="font-weight:700;font-size:14.5px">${esc(e[0])}</div><div class="muted" style="font-size:12.5px;margin-top:3px">${mob?esc(e[2]):e[1]+' × '+esc(e[2])+(e[4]?' · récup '+e[4]+' s':'')}</div>${e[5]?`<div style="font-size:12.5px;color:var(--body);margin-top:4px">${esc(e[5])}</div>`:''}
-      ${mob?`<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><span class="badge" style="background:${e[7]==='actif'?'rgba(255,107,53,.16)':'rgba(0,212,184,.14)'};color:${e[7]==='actif'?C.orange:C.teal}">${e[7]==='actif'?'Actif':'Passif'}</span>${e[6].split(', ').map(z=>`<span class="badge" style="background:var(--surface-2);color:var(--body)">${esc(z)}</span>`).join('')}</div>${mobBtns(i)}`:''}</div></div>`).join('')}</div>
+      ${mob?`<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><span class="badge" style="background:${e[7]==='actif'?'rgba(255,107,53,.16)':'rgba(0,212,184,.14)'};color:${e[7]==='actif'?C.orange:C.teal}">${({actif:'Actif',passif:'Passif',massage:'Massage'})[e[7]]||'Passif'}</span>${e[6].split(', ').map(z=>`<span class="badge" style="background:var(--surface-2);color:var(--body)">${esc(z)}</span>`).join('')}</div>${mobBtns(i)}`:''}</div></div>`).join('')}</div>
     <p class="muted" style="font-size:12px">${mob?`${(S.mobDone||[]).length} séance(s) de mobilité enregistrée(s). Étirements passifs après la course ou le soir ; avant une séance, seulement la routine dynamique.`:S.ppgDone.length+' séance(s) de PPG enregistrée(s).'}</p>
   </div>`;
 }
