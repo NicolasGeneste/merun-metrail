@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.9.9 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.10.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.9.9';
+const APP_VERSION = 'v4.10.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -339,7 +339,7 @@ function load(){
       if (!(o.schema >= 310)) { if (S.fcmax === 186) S.fcmax = 196;
         for (const k of Object.keys(S.done)) if (/^S0[1-4]_/.test(k)) delete S.done[k]; }
       if (!(o.schema >= 400)) { S.fb = S.fb || {}; S.adj = S.adj || []; S.schema = 400; save(); }
-      /* v4.9.9 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
+      /* v4.10.0 : FC max 196 (valeur isolee du 31/05/2026) remplacee par 187, choix du coureur le 30/10/2026 */
       if (!(o.schema >= 481)) { if (S.fcmax === 196) S.fcmax = 187; S.schema = 481; save(); }
       return; }
     const old = JSON.parse(localStorage.getItem('merunmetrail_v2') || 'null');
@@ -492,7 +492,7 @@ window.openS = code => openLayer('detail',{code});
 
 /* ---------------- Seances (semaine) ---------------- */
 function Plan(){
-  /* v4.9.9 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
+  /* v4.10.0 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
@@ -599,6 +599,7 @@ function Detail({code}){
         ${fb&&fb.note?`<p style="font-size:13px;margin-top:6px">« ${esc(fb.note)} »</p>`:''}
         <div class="row" style="gap:8px;margin-top:12px"><button class="pill" style="background:rgba(10,14,20,.15);flex:1" onclick="startFlow('${code}')">Modifier mon retour</button><button class="pill" style="background:rgba(10,14,20,.15)" onclick="undo('${code}')">Annuler</button></div></div>`
     : `<button class="pill" style="background:${C.text};color:${C.bg};padding:17px;font-size:15px" onclick="startFlow('${code}')">Valider ma séance</button>`}
+    ${!isDone(s) && !frozen(s) && weekEnd(PLAN[s.week-1]) >= todayIso() ? `<button class="pill" style="background:${C.surface};padding:14px" onclick="mvOpen('${code}')">${s.movedFrom?'Déplacée (prévue '+shortDate(s.movedFrom)+') · changer':'Déplacer la séance'}</button>` : ''}
     ${ivDetailBlock(s)}
     ${ivCode() ? '' : `<button class="pill" style="background:${C.surface};padding:16px" onclick="exportOne('${code}')">Envoyer au Garmin (.fit)</button>`}
     ${frozen(s)||s.kind==='q'?'':`<button class="card row" style="text-align:left" onclick="V.routine='M1';tReset(true);go('ppg')"><span class="kdot" style="background:${C.teal}">${ico('reset',20)}</span><span style="flex:1"><span style="font-weight:800;display:block">Mobilité après course</span><span class="muted" style="font-size:12.5px">Jambes · 5 mouvements · 10 min</span></span>${ico('next',18)}</button>`}
@@ -1704,7 +1705,11 @@ function wkPreview(w, c){
 /* Applique toutes les semaines dans l'ordre (le plafond depend de la semaine precedente) */
 function applyWeekPrefs(){
   S.wk = S.wk || {};
-  PLAN.forEach((w,i) => { w.sessions = w.pre ? BASE_W[i].sessions.slice() : wkBuild(w, S.wk[w.num]); w.km = r1(sumKm(w.sessions)); });
+  const mv = S.mv || {};
+  PLAN.forEach((w,i) => { w.sessions = w.pre ? BASE_W[i].sessions.slice() : wkBuild(w, S.wk[w.num]);
+    /* v4.10 : seances deplacees a la main (S.mv : code -> nouvelle date, dans la meme semaine) */
+    w.sessions = w.sessions.map(s => mv[s.code] && mv[s.code] !== s.date ? {...s, date:mv[s.code], day:WDAYS[(d8(mv[s.code]).getDay()+6)%7], movedFrom:s.date} : s).sort((a,b)=>a.date.localeCompare(b.date));
+    w.km = r1(sumKm(w.sessions)); });
   ALL.length = 0; ALL.push(...PLAN.flatMap(w => w.sessions));
   TOTAL_KM = OFF.reduce((a,w)=>a+w.km, 0); calcMiles();
 }
@@ -1759,6 +1764,56 @@ function WkSet(l){
     <button class="pill" style="background:${C.orange};color:${C.bg};padding:16px" onclick="wkSave(${w.num})">Enregistrer${ivCode()?' et mettre la montre à jour':''}</button>
     <p class="muted" style="font-size:11.5px">Règles MeRun : la semaine ne dépasse jamais son volume prévu ou +10 % sur la semaine précédente (le plus grand des deux). Une hausse de plus de 30 % en deux semaines a été associée à davantage de blessures chez des coureurs débutants (Nielsen et al., JOSPT 2014). Tes retours de séance peuvent toujours alléger la semaine ensuite.</p>
   </div>`;
+}
+
+/* ---------------- Deplacer une seance (v4.10) ----------------
+   Dans la meme semaine, vers aujourd'hui ou plus tard. Si le jour choisi est occupe, la seance qui l'occupe
+   glisse au prochain jour libre de la semaine (refuse s'il n'y en a pas, ou si elle est faite, test ou course). */
+function mvPlan(code, to){
+  const s = ALL.find(x => x.code===code), w = PLAN[s.week-1];
+  const occ = d => w.sessions.find(x => x.date===d && x.code!==code);
+  const res = {moves:{[code]:to}, why:null, bumped:null};
+  const o = occ(to);
+  if (o){
+    if (isDone(o) || frozen(o)) { res.why = `${DOW[o.day]} est déjà pris par « ${o.title} » (${isDone(o)?'faite':'test ou course'}).`; return res; }
+    let d;
+    /* le jour libere par la seance deplacee devient libre */
+    d = addDays(to, 1); while (d <= weekEnd(w) && w.sessions.some(x => x.date===d && x.code!==code && x.code!==o.code)) d = addDays(d, 1);
+    if (d > weekEnd(w)) { res.why = `Pas de jour libre après ${DOW[o.day]} pour décaler « ${o.title} » dans cette semaine.`; return res; }
+    res.moves[o.code] = d; res.bumped = {o, d};
+  }
+  return res;
+}
+window.mvOpen = code => { V.mvTo = null; openLayer('move', {code}); };
+window.mvPick = d => { V.mvTo = d; render(); };
+window.mvSave = code => {
+  const plan = mvPlan(code, V.mvTo); if (plan.why) return toast(plan.why);
+  S.mv = S.mv || {}; const st = ivCode() ? ivState() : null, ids = [];
+  for (const [c, d] of Object.entries(plan.moves)){
+    const cur = ALL.find(x => x.code===c), base = cur.movedFrom || cur.date;
+    if (d === base) delete S.mv[c]; else S.mv[c] = d;
+    if (st && st.sent[c]) { ids.push(st.sent[c].id); delete st.sent[c]; }
+  }
+  applyWeekPrefs(); save(); if (V.layers.length) closeLayer(); else render();
+  toast('✓ Séance déplacée'+(plan.bumped?` · « ${plan.bumped.o.title} » passe au ${DOW[WDAYS[(d8(plan.bumped.d).getDay()+6)%7]]} ${shortDate(plan.bumped.d)}`:''));
+  if (st) ivRun('push', async () => { if (ids.length) await ivCall('delete', {ids}); save(); }).then(() => ivSyncNow());
+};
+window.mvReset = code => { const s = ALL.find(x => x.code===code); if (!s || !s.movedFrom) return; V.mvTo = s.movedFrom; mvSave(code); };
+function Move(l){
+  const s = ALL.find(x => x.code===l.code); if (!s) return '';
+  const w = PLAN[s.week-1], t = todayIso(), from = t > w.start ? t : w.start, days = [];
+  for (let d = from; d <= weekEnd(w); d = addDays(d, 1)) days.push(d);
+  const plan = V.mvTo ? mvPlan(s.code, V.mvTo) : null;
+  const dl = d => DOW[WDAYS[(d8(d).getDay()+6)%7]]+' '+shortDate(d);
+  return `<div class="pad">${head('Déplacer', esc(s.title)+' · prévue '+dl(s.date))}
+    <div class="card"><div class="mono muted">Nouveau jour (même semaine)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${days.map(d => { const o = w.sessions.find(x => x.date===d), me = o && o.code===s.code, on = V.mvTo===d;
+        return `<button class="row" style="justify-content:space-between;padding:12px 14px;border-radius:16px;background:${on?C.teal:'var(--surface-2)'};color:${on?C.bg:'inherit'};${me?'opacity:.45':''}" ${me?'disabled':''} onclick="mvPick('${d}')"><b>${dl(d)}${d===t?' · aujourd\'hui':''}</b><span style="font-size:12.5px;${on?'':'color:var(--muted)'}">${me?'jour actuel':o?esc(o.title):'libre'}</span></button>`; }).join('')}</div></div>
+    ${plan ? plan.why ? `<div class="card" style="border:2px solid ${C.amber}"><p style="font-size:13px">${esc(plan.why)}</p></div>`
+      : `<div class="card"><p style="font-size:13px;color:var(--body)">« ${esc(s.title)} » passe au <b>${dl(V.mvTo).replace(/\.$/,'')}</b>.${plan.bumped?` « ${esc(plan.bumped.o.title)} » glisse au <b>${dl(plan.bumped.d).replace(/\.$/,'')}</b>.`:''}${ivCode()?' La montre sera mise à jour.':''}</p></div>
+        <button class="pill" style="background:${C.orange};color:${C.bg};padding:16px" onclick="mvSave('${s.code}')">Déplacer</button>` : ''}
+    ${s.movedFrom ? `<button class="pill" style="background:${C.surface2};padding:13px" onclick="mvReset('${s.code}')">Remettre au jour prévu (${dl(s.movedFrom)})</button>` : ''}
+    <p class="muted" style="font-size:11.5px">Évite d'enchaîner deux séances dures : une séance clé la veille d'une autre séance clé fatigue plus que prévu.</p></div>`;
 }
 
 /* ---------------- Historique Intervals.icu (v4.9) ----------------
@@ -1933,7 +1988,7 @@ function Bilan(l){
     <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan</button>
     <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié. Ajoute ta question à la fin, puis colle-le dans le projet « Entraînement » sur Claude.</p></div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan});
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
