@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.13.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.14.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.13.0';
+const APP_VERSION = 'v4.14.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -503,8 +503,8 @@ function Plan(){
   const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   let idx = 0;
   const items = days.map(dd => {
-    const s = w.sessions.find(x=>x.day===dd); const p = w.ppg.find(x=>x.day===dd);
-    if (s){ idx++; return sessCard(s, idx, w.sessions.length); }
+    const ss = w.sessions.filter(x=>x.day===dd); const p = w.ppg.find(x=>x.day===dd);
+    if (ss.length) return ss.map(s => { idx++; return sessCard(s, idx, w.sessions.length); }).join('');
     if (p){ const ok=S.ppgDone.includes(p.date); return `<button class="ppgline" onclick="V.routine='${p.routine||'P1'}';go('ppg')"><span style="color:${ok?C.pink:C.muted}">${ok?'✓':'◇'}</span>${dd} ${shortDate(p.date)} · ${esc(p.name)}</button>`; }
     return '';
   }).join('');
@@ -526,6 +526,8 @@ function Plan(){
     </div>
     ${adj ? adjBanner(adj) : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
+    ${wkOpen(w) ? `<button class="card row" style="text-align:left" onclick="xsOpen(${w.num})"><span class="kdot" style="background:${C.orange}">${ico('arrow',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajouter une sortie</span><span class="muted" style="font-size:12.5px">Un footing EF en plus, avec des amis par exemple</span></span>${ico('next',18)}</button>` : ''}
+    ${(() => { const ex = S.acts.map((a,i)=>[a,i]).filter(([a]) => !a.code && inWeek(a.date, w) && a.km > 1 && !w.sessions.some(s => s.date===a.date && !isDone(s))); return ex.length ? `<div class="card"><div class="mono muted">Hors plan</div>${ex.map(([a,i]) => `<div class="row" style="justify-content:space-between;gap:8px;margin-top:10px"><span style="font-size:13.5px;min-width:0"><b>${DOW[WDAYS[(d8(a.date).getDay()+6)%7]]} ${shortDate(a.date)}</b> · ${fmtN(a.km)} km${a.dur?' · '+fmtHMS(a.dur):''}${a.hr?' · FC '+a.hr:''}</span><button class="pill" style="flex:none;background:${C.surface2};font-size:12px;padding:8px 11px" onclick="xsAttach(${i})">Sortie en plus</button></div>`).join('')}<p class="muted" style="font-size:11.5px;margin-top:8px">Déjà comptées dans les km de la semaine. « Sortie en plus » les range dans ta semaine pour que tu puisses donner ton ressenti.</p></div>` : ''; })()}
     <div style="display:flex;flex-direction:column;gap:10px">${items.trim()||`<div class="card"><p style="color:var(--body)">${esc(w.title)}. Aucune séance programmée.</p></div>`}</div>
     ${ivCode() ? '' : `<div class="row" style="gap:8px">
       <button class="pill" style="flex:1;background:${C.text};color:${C.bg}" onclick="exportWeek(${w.num})">Semaine vers Garmin (.zip)</button>
@@ -563,7 +565,7 @@ const REASONS = {
 const RLABEL = Object.fromEntries([...REASONS.forme, ...REASONS.cond]);
 const EFFORT = {easy:'Trop facile', ok:'Adapté', hard:'Difficile à tenir'};
 function Detail({code}){
-  const s = ALL.find(x=>x.code===code); const k=KIND[s.kind]; const steps=stepsOf(s); const f=flatSteps(steps,s.bloc,S.vc); const tot=f.reduce((a,x)=>a+x.sec,0)||1;
+  const s = ALL.find(x=>x.code===code); if (!s) return ""; const k=KIND[s.kind]; const steps=stepsOf(s); const f=flatSteps(steps,s.bloc,S.vc); const tot=f.reduce((a,x)=>a+x.sec,0)||1;
   const wu=f.filter(x=>x.k==='warmup').reduce((a,x)=>a+x.sec,0), cd=f.filter(x=>x.k==='cooldown').reduce((a,x)=>a+x.sec,0), core=tot-wu-cd;
   const mz = mainZone(s); const {f:fa, a} = adjFactor(s);
   const bands = [[wu,'Échauf.','EF'],[core,'Séance',mz],[cd,'Retour','RECUP']].filter(b=>b[0]>0);
@@ -600,7 +602,8 @@ function Detail({code}){
         ${fb&&fb.note?`<p style="font-size:13px;margin-top:6px">« ${esc(fb.note)} »</p>`:''}
         <div class="row" style="gap:8px;margin-top:12px"><button class="pill" style="background:rgba(10,14,20,.15);flex:1" onclick="startFlow('${code}')">Modifier mon retour</button><button class="pill" style="background:rgba(10,14,20,.15)" onclick="undo('${code}')">Annuler</button></div></div>`
     : `<button class="pill" style="background:${C.text};color:${C.bg};padding:17px;font-size:15px" onclick="startFlow('${code}')">Valider ma séance</button>`}
-    ${!isDone(s) && !frozen(s) && weekEnd(PLAN[s.week-1]) >= todayIso() ? `<button class="pill" style="background:${C.surface};padding:14px" onclick="mvOpen('${code}')">${s.movedFrom?'Déplacée (prévue '+shortDate(s.movedFrom)+') · changer':'Déplacer la séance'}</button>` : ''}
+    ${!isDone(s) && !frozen(s) && !s.xs && weekEnd(PLAN[s.week-1]) >= todayIso() ? `<button class="pill" style="background:${C.surface};padding:14px" onclick="mvOpen('${code}')">${s.movedFrom?'Déplacée (prévue '+shortDate(s.movedFrom)+') · changer':'Déplacer la séance'}</button>` : ''}
+    ${s.xs ? `<button class="pill" style="background:${C.surface};color:${C.pink};padding:14px" onclick="xsDel('${code}')">Retirer cette sortie en plus</button>` : ''}
     ${ivDetailBlock(s)}
     ${ivCode() ? '' : `<button class="pill" style="background:${C.surface};padding:16px" onclick="exportOne('${code}')">Envoyer au Garmin (.fit)</button>`}
     ${frozen(s)||s.kind==='q'?'':`<button class="card row" style="text-align:left" onclick="V.routine='M1';V.mobOpen=true;V.mobG='run';tReset(true);go('ppg')"><span class="kdot" style="background:${C.teal}">${ico('reset',20)}</span><span style="flex:1"><span style="font-weight:800;display:block">Mobilité après course</span><span class="muted" style="font-size:12.5px">Jambes · 5 mouvements · 10 min</span></span>${ico('next',18)}</button>`}
@@ -1917,6 +1920,7 @@ function applyWeekPrefs(){
   PLAN.forEach((w,i) => { w.sessions = w.pre ? BASE_W[i].sessions.slice() : wkBuild(w, S.wk[w.num]);
     /* v4.10 : seances deplacees a la main (S.mv : code -> nouvelle date, dans la meme semaine) */
     w.sessions = w.sessions.map(s => mv[s.code] && mv[s.code] !== s.date ? {...s, date:mv[s.code], day:WDAYS[(d8(mv[s.code]).getDay()+6)%7], movedFrom:s.date} : s).sort((a,b)=>a.date.localeCompare(b.date));
+    xsApply(w);
     w.km = r1(sumKm(w.sessions)); });
   ALL.length = 0; ALL.push(...PLAN.flatMap(w => w.sessions));
   TOTAL_KM = OFF.reduce((a,w)=>a+w.km, 0); calcMiles();
@@ -2022,6 +2026,88 @@ function Move(l){
         <button class="pill" style="background:${C.orange};color:${C.bg};padding:16px" onclick="mvSave('${s.code}')">Déplacer</button>` : ''}
     ${s.movedFrom ? `<button class="pill" style="background:${C.surface2};padding:13px" onclick="mvReset('${s.code}')">Remettre au jour prévu (${dl(s.movedFrom)})</button>` : ''}
     <p class="muted" style="font-size:11.5px">Évite d'enchaîner deux séances dures : une séance clé la veille d'une autre séance clé fatigue plus que prévu.</p></div>`;
+}
+
+/* ---------------- Sortie en plus (v4.14) ----------------
+   Le coureur ajoute librement une sortie EF (ex. avec des amis) : jour, duree, montre ou non, et
+   eventuellement a la place du footing prevu ce jour-la. Pas de refus : seulement des alertes
+   (plafond de volume MeRun, veille de seance cle, semaine de course). Stockage : S.xs = [{id,date,min,rep,lab}].
+   Une sortie hors plan deja recuperee de la montre peut aussi etre rattachee ("compter comme sortie en plus"). */
+const xsId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const xsWeek = date => PLAN.find(w => date >= w.start && date <= weekEnd(w));
+function xsSession(x){ const w = xsWeek(x.date); if (!w) return null; const day = WDAYS[(d8(x.date).getDay()+6)%7];
+  return {code:'X_'+x.id, week:w.num, bloc:w.bloc, date:x.date, day, kind:'foot', name:`EF ${x.min} min${x.lab?' · '+x.lab:''} (sortie en plus)`,
+    title:`EF ${x.min} min${x.lab?' · '+x.lab:''}`, km:r1(x.min*efKmPerMin(w.bloc)),
+    note:'Sortie ajoutée par toi. En groupe, l\'allure monte vite : reste sous 145 bpm, quitte à laisser filer les autres ou à proposer un rythme où tout le monde parle.',
+    steps:[{n:`EF ${x.min} min`,k:'active',z:'EF',t:x.min*60}], extra:true, xs:x.id}; }
+function xsApply(w){ const xs = (S.xs||[]).filter(x => x.date >= w.start && x.date <= weekEnd(w)); if (!xs.length) return;
+  const rep = new Set(xs.map(x => x.rep).filter(Boolean));
+  w.sessions = w.sessions.filter(s => !rep.has(s.code) || isDone(s)).concat(xs.map(xsSession).filter(Boolean)).sort((a,b)=>a.date.localeCompare(b.date)); }
+/* Previsualisation : volume, plafond et alertes */
+function xsCheck(w, date, min, rep){
+  const i0 = w.num-1, prevKm = i0>0 ? PLAN[i0-1].km : 0, cap = Math.max(baseKmOf(w), prevKm*1.10), kpm = efKmPerMin(w.bloc);
+  const km = r1(min*kpm), repS = rep && w.sessions.find(s => s.code===rep);
+  const after = r1(sumKm(w.sessions) - (repS ? repS.km : 0) + km), warn = [];
+  if (after > cap + 0.05){ const room = cap - (sumKm(w.sessions) - (repS ? repS.km : 0)), mx = Math.floor(room/kpm/5)*5;
+    warn.push(`La semaine passe à ${fmtN(after)} km${prevKm?` (${after>=prevKm?'+':''}${Math.round((after/prevKm-1)*100)} % sur le prévu de la semaine précédente)`:''}, au-dessus du plafond MeRun de ${fmtN(r1(cap))} km. Ponctuellement, ça passe si c'est vraiment facile${mx>=20?` ; pour rester dans le cadre : ${mx} min max`:''}.`); }
+  const next = ALL.find(s => s.date === addDays(date, 1) && isKey(s));
+  if (next) warn.push(`Demain : ${next.title}. Une sortie en plus la veille d'une séance clé la rend plus dure : très facile ou plus courte.`);
+  const prev = ALL.find(s => s.date === addDays(date, -1) && isKey(s));
+  if (prev) warn.push(`Hier : ${prev.title}. Lendemain de séance clé : footing de récupération, pas plus.`);
+  if (w.sessions.some(s => frozen(s))) warn.push('Semaine de test ou de course : garde de la fraîcheur.');
+  const same = w.sessions.filter(s => s.date===date && s.code!==rep && !s.xs);
+  if (same.length && !repS) warn.push(`Tu as déjà « ${same[0].title} » ce jour-là : ça fera deux sorties dans la journée.`);
+  return {km, after, cap:r1(cap), warn};
+}
+window.xsOpen = num => { const w = PLAN.find(x => x.num===num), t = todayIso();
+  V.xs = {date: t >= w.start && t <= weekEnd(w) ? t : w.start, min:60, rep:null, watch:true, lab:'entre potes'}; openLayer('xsadd', {week:num}); };
+window.xsPick = (k, v) => { V.xs[k] = v; if (k==='date') V.xs.rep = null; render(); };
+window.xsSave = num => {
+  const w = PLAN.find(x => x.num===num), c = V.xs, id = xsId();
+  S.xs = S.xs || []; S.xs.push({id, date:c.date, min:c.min, rep:c.rep||null, lab:(c.lab||'').trim().slice(0,30)});
+  const st = ivCode() ? ivState() : null, code = 'X_'+id, ids = [];
+  if (st){ if (!c.watch || c.date < todayIso()){ st.skip = st.skip || {}; st.skip[code] = true; }
+    if (c.rep && st.sent[c.rep]){ ids.push(st.sent[c.rep].id); delete st.sent[c.rep]; } }
+  applyWeekPrefs(); save(); closeLayer(); toast('✓ Sortie ajoutée · '+fmtN(w.km)+' km cette semaine');
+  if (st) ivRun('push', async () => { if (ids.length) await ivCall('delete', {ids}); save(); }).then(() => { if (c.watch && c.date >= todayIso()) ivSyncNow(); });
+};
+window.xsDel = code => { const s = ALL.find(x => x.code===code); if (!s || !s.xs) return;
+  S.xs = (S.xs||[]).filter(x => x.id !== s.xs); delete S.done[code]; delete S.fb[code]; S.acts.forEach(a => { if (a.code===code) delete a.code; });
+  const st = ivCode() ? ivState() : null, x = st && st.sent[code];
+  applyWeekPrefs(); save(); closeLayer(); toast('Sortie retirée');
+  if (x) ivRun('del', async () => { await ivCall('delete', {ids:[x.id]}); delete st.sent[code]; save(); }).then(() => ivSyncNow());
+};
+/* Rattache une sortie hors plan (deja faite) comme sortie en plus */
+window.xsAttach = i => { const a = S.acts[i]; if (!a || a.code) return; const w = xsWeek(a.date); if (!w) return toast('Hors des dates du plan');
+  const id = xsId(), min = Math.max(5, Math.round((a.dur || a.km/efKmPerMin(w.bloc)*60)/60));
+  S.xs = S.xs || []; S.xs.push({id, date:a.date, min, rep:null, lab:'hors plan'});
+  const code = 'X_'+id; a.code = code; S.done[code] = 3; if (ivCode()){ const st = ivState(); st.skip = st.skip || {}; st.skip[code] = true; }
+  applyWeekPrefs(); save(); render(); toast('✓ Comptée comme sortie en plus · valide-la pour ajouter ton ressenti'); };
+function XsAdd(l){
+  const w = PLAN.find(x => x.num===l.week), c = V.xs; if (!w || !c) return '';
+  const t = todayIso(), days = []; for (let d = w.start; d <= weekEnd(w); d = addDays(d, 1)) days.push(d);
+  const dl = d => DOW[WDAYS[(d8(d).getDay()+6)%7]]+' '+shortDate(d);
+  const foots = w.sessions.filter(s => s.date===c.date && s.kind==='foot' && !isDone(s) && !s.xs);
+  const ck = xsCheck(w, c.date, c.min, c.rep), past = c.date < t;
+  const chip = (on, lab, js) => `<button class="pill" style="padding:9px 13px;font-size:13px;background:${on?C.teal:C.surface2};color:${on?C.bg:'inherit'}" onclick="${js}">${lab}</button>`;
+  return `<div class="pad">${head('Sortie en plus', wLab(w)+' · footing EF libre')}
+    <div class="card"><div class="mono muted">Jour</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">${days.map(d => { const o = w.sessions.filter(s => s.date===d).length;
+        return chip(c.date===d, `${DOW[WDAYS[(d8(d).getDay()+6)%7]]} ${d8(d).getDate()}${d===t?' · auj.':''}${o?' ·'+'•'.repeat(o):''}`, `xsPick('date','${d}')`); }).join('')}</div>
+      <div class="muted" style="font-size:11.5px;margin-top:8px">• = séance déjà prévue ce jour-là${past?' · jour passé : pas d\'envoi sur la montre':''}</div></div>
+    <div class="card"><div class="mono muted">Durée</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">${[30,45,60,75,90,105,120].map(m => chip(c.min===m, m+' min', `xsPick('min',${m})`)).join('')}</div>
+      <div class="muted" style="font-size:12px;margin-top:8px">≈ ${fmtN(ck.km)} km à allure EF · FC sous 145</div></div>
+    ${foots.length ? `<div class="card"><div class="mono muted">Footing prévu ce jour-là</div><div style="font-size:13px;margin:6px 0 10px;color:var(--body)">${esc(foots[0].title)} (${fmtN(foots[0].km)} km)</div>
+      <div class="row" style="gap:6px">${chip(!c.rep, 'Je fais les deux', "xsPick('rep',null)")}${chip(c.rep===foots[0].code, 'Elle le remplace', `xsPick('rep','${foots[0].code}')`)}</div></div>` : ''}
+    <div class="card"><div class="mono muted">Nom (facultatif)</div>
+      <input value="${esc(c.lab||'')}" maxlength="30" oninput="V.xs.lab=this.value" placeholder="entre potes" style="width:100%;margin-top:8px;padding:11px 13px;border-radius:12px;border:0;background:var(--surface-2);color:inherit;font:inherit"></div>
+    ${ivCode() && !past ? `<div class="card row" style="justify-content:space-between"><span style="font-size:13.5px"><b>Sur la montre</b><span class="muted" style="display:block;font-size:12px">Séance EF avec alerte FC 145</span></span>${chip(c.watch, c.watch?'Oui':'Non', `xsPick('watch',${!c.watch})`)}</div>` : ''}
+    <div class="card"><div class="row" style="justify-content:space-between"><div class="mono muted">Semaine</div><div class="anton" style="font-size:24px">${fmtN(ck.after)} km</div></div>
+      <div class="muted" style="font-size:12px;margin-top:2px">Avant : ${fmtN(w.km)} km · plafond MeRun ${fmtN(ck.cap)} km</div>
+      ${ck.warn.map(x => `<p style="font-size:12.5px;color:${C.amber};margin-top:8px">${esc(x)}</p>`).join('') || `<p class="muted" style="font-size:12.5px;margin-top:8px;color:${C.teal}">Dans le cadre du plan.</p>`}</div>
+    <button class="pill" style="background:${C.orange};color:${C.bg};padding:16px" onclick="xsSave(${w.num})">Ajouter la sortie</button>
+    <p class="muted" style="font-size:11.5px">Pas de refus ici : c'est ta décision. Le plafond MeRun (volume prévu ou +10 % sur la semaine précédente) sert de repère ; les hausses brutales de volume sont associées à plus de blessures (Nielsen et al., JOSPT 2014).</p></div>`;
 }
 
 /* ---------------- Historique Intervals.icu (v4.9) ----------------
@@ -2196,7 +2282,7 @@ function Bilan(l){
     <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan</button>
     <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié. Ajoute ta question à la fin, puis colle-le dans le projet « Entraînement » sur Claude.</p></div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move, lib:Lib});
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move, lib:Lib, xsadd:XsAdd});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
