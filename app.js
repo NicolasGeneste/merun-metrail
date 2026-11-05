@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.15.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.15.2 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.15.1';
+const APP_VERSION = 'v4.15.2';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -524,7 +524,6 @@ function Plan(){
         <button class="pill" style="background:${C.surface2};font-size:13px;padding:10px" onclick="openLayer('acts')">Activités</button></div>
       <button class="pill" style="width:100%;margin-top:8px;background:${C.surface2};font-size:13px;padding:10px" onclick="bilanOpen(${w.num})">${ico('edit',16)} Mon bilan pour Claude</button>
     </div>
-    ${w.pre ? '' : weekTiles(w)}
     ${adj ? adjBanner(adj) : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left" onclick="xsOpen(${w.num})"><span class="kdot" style="background:${C.orange}">${ico('arrow',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajouter une sortie</span><span class="muted" style="font-size:12.5px">Un footing EF en plus, avec des amis par exemple</span></span>${ico('next',18)}</button>` : ''}
@@ -545,12 +544,12 @@ function sessCard(s, i, n){
   const st = (l, v) => `<div><div class="muted" style="font-size:11.5px">${l}</div><div style="margin-top:3px">${v}</div></div>`;
   const tag = isDone(s) ? `<span class="badge" style="background:${C.teal};color:${C.bg}">✓ ${fb?({easy:'Trop facile',ok:'Adapté',hard:'Difficile'})[fb.effort]:'Faite'}</span>`
     : s.date < todayIso() ? `<span class="badge" style="background:rgba(255,77,148,.18);color:${C.pink}">Retour attendu</span>` : '';
-  return `<button class="scard" onclick="openS('${s.code}')">
-    <div class="row" style="gap:12px;align-items:flex-start">
-      <span class="kdot" style="background:${k.c}">${ico(s.kind==='q'?'zap':s.kind==='sl'?'activity':s.kind==='foot'?'arrow':'target',20)}</span>
-      <span style="flex:1;min-width:0"><span class="row" style="gap:8px;flex-wrap:wrap">${isKey(s)?`<span class="badge key">Séance clé</span>`:''}<span class="muted" style="font-size:12px">Séance ${i}/${n} · ${DOW[s.day]} ${shortDate(s.date)}</span></span>
-        <span style="display:block;font-size:16.5px;font-weight:800;margin-top:4px">${esc(s.title)}</span></span>
-      ${ico('next',18)}</div>
+  const xs = sxState(s), nx = sxNext(s);
+  return `<button class="scard" onclick="openS('${s.code}')" style="${nx?'box-shadow:inset 0 0 0 2px '+C.teal:''}">
+    <div class="row" style="gap:12px;align-items:center">
+      <span style="flex:1;min-width:0"><span class="row" style="gap:8px;flex-wrap:wrap">${isKey(s)?`<span class="badge key">Séance clé</span>`:''}${nx?`<span class="badge" style="background:rgba(0,212,184,.16);color:${C.teal}">Prochaine</span>`:''}<span class="muted" style="font-size:12px">Séance ${i}/${n} · ${DOW[s.day]} ${shortDate(s.date)}</span></span>
+        <span style="display:block;font-size:16.5px;font-weight:800;margin-top:4px">${xs==='done'?`<span style="color:${C.teal}">✓ </span>`:xs==='miss'?`<span style="color:${C.pink}">✗ </span>`:''}${esc(s.title)}</span></span>
+      ${sessHex(s, xs, 54)}</div>
     ${(()=>{ const a = isDone(s) && actOf(s.code), dur = a && a.dur ? a.dur : sessDur(s), km = a && a.km ? a.km : kmOf(s);
       return `<div class="grid3" style="margin-top:12px">${st(a&&a.dur?'Durée réelle':'Durée',`<span class="anton" style="font-size:20px">${fmtDur(dur).replace(' min','')}</span><span class="muted" style="font-size:11px">${dur>=3600?'':' min'}</span>`)}${st(a&&a.km?'Distance réelle':'Distance',`<span class="anton" style="font-size:20px">${fmtN(km)}</span><span class="muted" style="font-size:11px"> km</span>`)}`; })()}${st('Difficulté',bolts(diffOf(s)))}</div>
     ${(()=>{ const d = s.name.trim()!==s.title.trim() ? s.name : (s.note||''); return d?`<p class="clamp" style="margin-top:10px;font-size:13px;color:var(--body);font-weight:500">${esc(d)}</p>`:''; })()}
@@ -582,7 +581,8 @@ function Detail({code}){
       <div class="row" style="justify-content:space-between"><button class="back hero-back" onclick="closeLayer()" aria-label="Retour">${ico('back')}</button>
         <span class="mono" style="font-size:11px">${PLAN[s.week-1].pre?'Pré-saison':'S'+wNo(PLAN[s.week-1])} · ${DOW[s.day]} ${shortDate(s.date)}</span></div>
       <div class="row" style="margin-top:14px;gap:8px">${isKey(s)?`<span class="badge" style="background:${C.bg};color:${k.c}">Séance clé</span>`:''}<span style="font-weight:800;font-size:13px">${k.l}</span></div>
-      <div class="anton" style="font-size:40px;line-height:1.02;margin-top:6px">${esc(s.title)}</div>
+      <div class="row" style="gap:12px;align-items:center;margin-top:6px"><div class="anton" style="flex:1;min-width:0;font-size:40px;line-height:1.02">${esc(s.title)}</div>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:3px">${sessHex(s, null, 66, true)}<span class="mono" style="font-size:9.5px">${SX_LABEL[sxState(s)]}</span></span></div>
       ${real?`<div class="mono" style="font-size:10px;margin-top:12px">Réalisé${act.hr?' · FC moy '+act.hr:''}</div>`:''}
       <div class="grid3" style="margin-top:${real?6:14}px">${cells.map(([x,y])=>`<div><div class="mono" style="font-size:9.5px;opacity:.75">${x}</div><div class="anton" style="font-size:${String(y).length>6?20:28}px">${y}</div></div>`).join('')}</div>
       ${real?`<div style="font-size:12.5px;margin-top:8px;opacity:.8">Prévu : ${planCells.map(c=>c[1]+(c[0]==='KM'?' km':c[0]==='MIN/KM'&&c[1]!=='libre'?' /km':'')).join(' · ')}</div>`:''}
@@ -1550,6 +1550,17 @@ function weekTiles(w){
       <defs><filter id="wtg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${hx}</svg>
     <div class="row muted" style="gap:10px;font-size:11px;flex-wrap:wrap;justify-content:center;margin-top:6px">${[...new Set(st)].map(k=>`<span class="row" style="gap:5px"><i class="lg" style="background:${HX_COL[k][0]};box-shadow:inset 0 0 0 1.5px ${HX_COL[k][1]}"></i>${SX_LABEL[k]}</span>`).join('')}</div></div>`;
 }
+
+/* v4.15.2 : hexagone d'etat sur chaque carte de seance et dans le detail */
+const sxIco = s => s.kind==='q'?'zap':s.kind==='sl'?'activity':s.kind==='foot'?'arrow':'target';
+const sxNext = s => { const t = todayIso(), w = PLAN[s.week-1]; if (!w || s.date < t || isDone(s)) return false;
+  const nx = w.sessions.filter(x => x.date >= t && !isDone(x)).sort((a,b)=>a.date.localeCompare(b.date))[0]; return !!nx && nx.code === s.code; };
+function sessHex(s, xs, size, hero){ xs = xs || sxState(s); let [f,stc,tc] = HX_COL[xs]; const key = isKey(s), r = 46, c = 50;
+  let ic = xs==='fut' ? (key ? C.amber : KIND[s.kind].c) : tc;
+  if (hero){ ic = xs==='fut' ? C.text : xs==='miss' ? C.pink : xs==='part' ? C.teal : f; stc = xs==='fut' ? '#7d8696' : ic; f = C.bg; }
+  return `<span style="position:relative;flex:none;width:${size}px;height:${size}px;display:inline-grid;place-items:center" aria-label="${SX_LABEL[xs]}">
+    <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;overflow:visible"><polygon points="${ptsStr(hexPts(c,c,r))}" fill="${f}" stroke="${key?C.amber:stc}" stroke-width="${key?6:3}"${!hero&&(xs==='done'||xs==='cur')?` style="filter:drop-shadow(0 0 6px ${f})"`:''}/></svg>
+    <span style="position:relative;color:${ic};display:grid">${ico(sxIco(s), Math.round(size*.4))}</span></span>`; }
 /* Defis : objectifs derives du plan lui-meme (km et PPG planifies), pas de cibles arbitraires */
 function challenges(){
   /* v4.6.1 : uniquement le plan officiel (pre-saison exclue). Si le mois en cours compte moins de 3 seances officielles
