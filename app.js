@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.14.1 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.15.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.14.1';
+const APP_VERSION = 'v4.15.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -466,6 +466,7 @@ function Home(){
     <div class="row muted" style="gap:12px;font-size:11.5px;flex-wrap:wrap;margin-top:-4px">${['done','part','miss','cur','fut'].map(k=>`<span class="row" style="gap:5px"><i class="lg" style="background:${HX_COL[k][0]};box-shadow:inset 0 0 0 1.5px ${HX_COL[k][1]}"></i>${HX_LABEL[k]}</span>`).join('')}<span class="row" style="gap:5px"><i class="lg" style="box-shadow:inset 0 0 0 2px ${C.amber}"></i>course</span></div>
     <div class="grid3">${up.map(m => { const d=daysTo(m.date); return `<div class="card" style="border-radius:20px;padding:12px 14px">
       <div class="mono muted" style="font-size:10px">${m.l}</div><div class="anton" style="font-size:28px;color:${m.c}">${d>0?'J-'+d:d===0?'Jour J':'✓'}</div><div class="muted" style="font-size:11px">${m.sub}</div></div>`; }).join('')}</div>
+    ${cwk.pre ? '' : weekTiles(cwk)}
     ${pend.length ? `<button class="card row" style="text-align:left;border:2px solid ${C.orange}" onclick="startFlow('${pend[pend.length-1].code}')">
       <span class="dot" style="background:${C.orange}">${ico('check',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.orange};display:block">Retour attendu</span>
       <span style="font-weight:700;display:block">${esc(pend[pend.length-1].title)} · ${DOW[pend[pend.length-1].day]} ${shortDate(pend[pend.length-1].date)}</span><span class="muted" style="font-size:12.5px">Comment ça s'est passé ? Ton retour ajuste le plan.</span></span>${ico('next')}</button>` : ''}
@@ -1523,6 +1524,31 @@ function Plus(){
     <button class="card row" style="text-align:left;border:2px solid ${ivCode()?(ivWarnings().length?C.amber:C.teal):C.surface2}" onclick="openLayer('montre')"><span class="kdot" style="background:${C.teal}">${ico('activity',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Montre · Intervals.icu</span><span class="muted" style="font-size:12.5px">${ivCode()?(ivWarnings().length?'Réglages Intervals.icu à corriger':'Envoi des séances et retour des sorties'):'Envoyer les séances sur la Garmin sans fichier'}</span></span>${ico('next',18)}</button>
     <p class="muted" style="font-size:11px;text-align:center">MeRun-MeTrail ${APP_VERSION}</p>
   </div>`;
+}
+
+/* v4.15 : dalles des seances de la semaine en cours (accueil), meme langage visuel que les semaines */
+const SX_LABEL = {done:'validée', part:'à valider', miss:'manquée', cur:"aujourd'hui", fut:'à venir'};
+const sxShort = s => s.xs ? 'EF+' : ({foot:'EF',q:'Q',sl:'SL',race:'🏁',test:'Test'})[s.kind] || '·';
+function sxState(s){ const t = todayIso();
+  if (isDone(s)) return 'done';
+  if (s.date <= t && S.acts.some(a => !a.code && a.date === s.date)) return 'part';
+  if (s.date < t) return 'miss';
+  return s.date === t ? 'cur' : 'fut'; }
+function weekTiles(w){
+  const ss = w.sessions; if (!ss.length) return '';
+  const st = ss.map(sxState), n = ss.length, ok = st.filter(x=>x==='done').length, todo = st.filter(x=>x==='part').length;
+  const r = 27, dx = 62, W = n*dx, H = 84;
+  const hx = ss.map((s,i) => { const [f,stc,tc] = HX_COL[st[i]], cx = dx/2 + i*dx, cy = 34, glow = st[i]==='done'||st[i]==='cur';
+    return `<g style="cursor:pointer" onclick="openS('${s.code}')" role="button" aria-label="${esc(s.title)}, ${DOW[s.day]} : ${SX_LABEL[st[i]]}">
+      <polygon points="${ptsStr(hexPts(cx,cy,r))}" fill="${f}" stroke="${s.kind==='race'||s.kind==='test'?C.amber:stc}" stroke-width="${s.kind==='race'||s.kind==='test'?3:1.5}"${glow?` filter="url(#wtg)"`:''}/>
+      <text x="${cx}" y="${cy+7}" text-anchor="middle" fill="${tc}" style="font:400 ${st[i]==='done'?22:19}px Anton">${st[i]==='done'?'✓':sxShort(s)}</text>
+      <text x="${cx}" y="${H-4}" text-anchor="middle" fill="${st[i]==='cur'?C.orange:C.muted}" style="font:600 11.5px Inter">${s.day}</text></g>`; }).join('');
+  return `<div class="card" style="padding:14px 14px 10px">
+    <div class="row" style="justify-content:space-between"><span style="font-weight:800">Séances validées</span><span class="anton" style="font-size:24px;color:${ok===n?C.teal:C.text}">${ok}<span class="muted" style="font-size:16px">/${n}</span></span></div>
+    <div class="muted" style="font-size:12px">${wLab(w)}${todo?` · <span style="color:${C.teal}">${todo} sortie${todo>1?'s':''} reçue${todo>1?'s':''} à valider</span>`:''}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W*1.15}px;display:block;margin:10px auto 0;overflow:visible">
+      <defs><filter id="wtg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${hx}</svg>
+    <div class="row muted" style="gap:10px;font-size:11px;flex-wrap:wrap;justify-content:center;margin-top:6px">${[...new Set(st)].map(k=>`<span class="row" style="gap:5px"><i class="lg" style="background:${HX_COL[k][0]};box-shadow:inset 0 0 0 1.5px ${HX_COL[k][1]}"></i>${SX_LABEL[k]}</span>`).join('')}</div></div>`;
 }
 /* Defis : objectifs derives du plan lui-meme (km et PPG planifies), pas de cibles arbitraires */
 function challenges(){
