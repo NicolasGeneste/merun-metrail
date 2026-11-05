@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.15.2 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.16.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.15.2';
+const APP_VERSION = 'v4.16.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -364,7 +364,7 @@ const ICON = {
   play:'<path d="M7 4v16l13-8z" fill="currentColor"/>', pause:'<path d="M7 4h4v16H7zM14 4h4v16h-4z" fill="currentColor"/>',
   reset:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>', skip:'<path d="M5 4l10 8-10 8zM19 5v14"/>',
   share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/>',
-  upload:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>', edit:'<path d="M4 20h4L20 8l-4-4L4 16z"/>', check:'<path d="M5 12l5 5L20 7"/>',
+  upload:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>', edit:'<path d="M4 20h4L20 8l-4-4L4 16z"/>', check:'<path d="M5 12l5 5L20 7"/>', thumb:'<path d="M7 10v11"/><path d="M15 5.9L14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 7a2 2 0 0 1-1.9 1.4H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3l4-8a3 3 0 0 1 4 3.9z"/>',
 };
 const ico = (k, sz=21) => `<svg class="ico" viewBox="0 0 24 24" style="width:${sz}px;height:${sz}px" aria-hidden="true">${ICON[k]}</svg>`;
 const TABS = [['home','Accueil','home'],['plan','Séances','list'],['goal','Objectif','target'],['profil','Profil','user'],['ppg','Corps','zap'],['plus','Plus','grid']];
@@ -496,6 +496,7 @@ function Plan(){
   /* v4.11.0 : la pre-saison n'apparait plus dans les Seances (donnees conservees pour l'historique) */
   const w = PLAN.find(x=>x.num===V.week && !x.pre) || (curWeek().pre ? OFF[0] : curWeek()); V.week = w.num;
   const b = BLOC[w.bloc], done = w.sessions.filter(isDone);
+  const far = !w.pre && w.num > curWeek().num + 1;
   const r = realWeek(w), pKm = w.sessions.reduce((a,s)=>a+kmOf(s),0), pDur = w.sessions.reduce((a,s)=>a+sessDur(s),0);
   const moods = w.sessions.map(s=>S.fb[s.code]&&S.fb[s.code].mood).filter(Boolean);
   const adj = S.adj.find(a => !a.off && a.from <= weekEnd(w) && a.to >= w.start);
@@ -525,10 +526,13 @@ function Plan(){
       <button class="pill" style="width:100%;margin-top:8px;background:${C.surface2};font-size:13px;padding:10px" onclick="bilanOpen(${w.num})">${ico('edit',16)} Mon bilan pour Claude</button>
     </div>
     ${adj ? adjBanner(adj) : ''}
-    ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
-    ${wkOpen(w) ? `<button class="card row" style="text-align:left" onclick="xsOpen(${w.num})"><span class="kdot" style="background:${C.orange}">${ico('arrow',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajouter une sortie</span><span class="muted" style="font-size:12.5px">Un footing EF en plus, avec des amis par exemple</span></span>${ico('next',18)}</button>` : ''}
+    ${wkOpen(w) && !far ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
+    ${wkOpen(w) && !far ? `<button class="card row" style="text-align:left" onclick="xsOpen(${w.num})"><span class="kdot" style="background:${C.orange}">${ico('arrow',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajouter une sortie</span><span class="muted" style="font-size:12.5px">Un footing EF en plus, avec des amis par exemple</span></span>${ico('next',18)}</button>` : ''}
     ${(() => { const ex = S.acts.map((a,i)=>[a,i]).filter(([a]) => !a.code && inWeek(a.date, w) && a.km > 1 && !w.sessions.some(s => s.date===a.date && !isDone(s))); return ex.length ? `<div class="card"><div class="mono muted">Hors plan</div>${ex.map(([a,i]) => `<div class="row" style="justify-content:space-between;gap:8px;margin-top:10px"><span style="font-size:13.5px;min-width:0"><b>${DOW[WDAYS[(d8(a.date).getDay()+6)%7]]} ${shortDate(a.date)}</b> · ${fmtN(a.km)} km${a.dur?' · '+fmtHMS(a.dur):''}${a.hr?' · FC '+a.hr:''}</span><button class="pill" style="flex:none;background:${C.surface2};font-size:12px;padding:8px 11px" onclick="xsAttach(${i})">Sortie en plus</button></div>`).join('')}<p class="muted" style="font-size:11.5px;margin-top:8px">Déjà comptées dans les km de la semaine. « Sortie en plus » les range dans ta semaine pour que tu puisses donner ton ressenti.</p></div>` : ''; })()}
-    <div style="display:flex;flex-direction:column;gap:10px">${items.trim()||`<div class="card"><p style="color:var(--body)">${esc(w.title)}. Aucune séance programmée.</p></div>`}</div>
+    ${far ? `<div class="card"><div class="row" style="justify-content:space-between"><span style="font-weight:800">Semaine provisoire</span><span class="mono muted" style="font-size:10.5px">${w.sessions.length} séances</span></div>
+      <p class="muted" style="font-size:12.5px;margin-top:6px">Le détail s'ouvre la semaine d'avant : tes retours, tes allègements et tes sorties en plus vont encore ajuster ces séances.</p>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${w.sessions.map(s=>`<div class="row" style="gap:10px;font-size:13.5px"><span class="muted" style="width:34px">${s.day}</span><span style="flex:1;font-weight:600">${isKey(s)?KIND[s.kind].l:s.kind==='foot'?'Footing':KIND[s.kind].l}</span>${isKey(s)?`<span class="badge key" style="font-size:10px">Clé</span>`:''}</div>`).join('')}</div></div>`
+    : `<div style="display:flex;flex-direction:column;gap:10px">${items.trim()||`<div class="card"><p style="color:var(--body)">${esc(w.title)}. Aucune séance programmée.</p></div>`}</div>`}
     ${ivCode() ? '' : `<div class="row" style="gap:8px">
       <button class="pill" style="flex:1;background:${C.text};color:${C.bg}" onclick="exportWeek(${w.num})">Semaine vers Garmin (.zip)</button>
       <button class="pill" style="background:${C.surface}" onclick="exportAll()">Plan complet</button></div>`}
@@ -1269,7 +1273,7 @@ function Cycles(){
     ${ws.map(w=>{ const open = V.openW===w.num; return `<div class="card" style="padding:0">
       <button class="row" style="width:100%;justify-content:space-between;padding:16px" onclick="V.openW=${open?'null':w.num};render()" aria-expanded="${open}">
         <span style="text-align:left"><span style="font-weight:800;display:block">Semaine ${w.num}</span><span class="muted" style="font-size:12px">${esc(w.title)} · ${w.km} km</span></span>${ico(open?'back':'next',18)}</button>
-      ${open?`<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:2px">${w.sessions.length?w.sessions.map(s=>`<button class="field" style="width:100%;text-align:left" onclick="openS('${s.code}')">
+      ${open?`<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:2px">${w.num > curWeek().num + 1 && w.sessions.length ? `<p class="muted" style="font-size:12px;margin:0 0 6px">Provisoire : le détail s'ouvre la semaine d'avant.</p>`+w.sessions.map(s=>`<div class="field" style="width:100%"><span style="font-weight:700">${s.kind==='foot'?'Footing':KIND[s.kind].l}${isKey(s)?' · clé':''}</span><span class="muted" style="font-size:12px">${DOW[s.day]} ${shortDate(s.date)}</span></div>`).join('') : w.sessions.length?w.sessions.map(s=>`<button class="field" style="width:100%;text-align:left" onclick="openS('${s.code}')">
         <span style="min-width:0"><span style="font-weight:700;display:block">${isDone(s)?'✓ ':''}${esc(s.title)}</span><span class="muted" style="font-size:12px">${DOW[s.day]} ${shortDate(s.date)} · ${fmtDur(sessDur(s))} · ${fmtN(kmOf(s))} km</span></span>${bolts(diffOf(s))}</button>`).join(''):'<p class="muted">Repos.</p>'}</div>`:''}</div>`; }).join('')}
   </div>`;
 }
@@ -1560,7 +1564,7 @@ function sessHex(s, xs, size, hero){ xs = xs || sxState(s); let [f,stc,tc] = HX_
   if (hero){ ic = xs==='fut' ? C.text : xs==='miss' ? C.pink : xs==='part' ? C.teal : f; stc = xs==='fut' ? '#7d8696' : ic; f = C.bg; }
   return `<span style="position:relative;flex:none;width:${size}px;height:${size}px;display:inline-grid;place-items:center" aria-label="${SX_LABEL[xs]}">
     <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;overflow:visible"><polygon points="${ptsStr(hexPts(c,c,r))}" fill="${f}" stroke="${key?C.amber:stc}" stroke-width="${key?6:3}"${!hero&&(xs==='done'||xs==='cur')?` style="filter:drop-shadow(0 0 6px ${f})"`:''}/></svg>
-    <span style="position:relative;color:${ic};display:grid">${ico(sxIco(s), Math.round(size*.4))}</span></span>`; }
+    <span style="position:relative;color:${ic};display:grid">${ico(xs==='done'?'thumb':sxIco(s), Math.round(size*.4))}</span></span>`; }
 /* Defis : objectifs derives du plan lui-meme (km et PPG planifies), pas de cibles arbitraires */
 function challenges(){
   /* v4.6.1 : uniquement le plan officiel (pre-saison exclue). Si le mois en cours compte moins de 3 seances officielles
