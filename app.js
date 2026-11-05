@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.12.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.13.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.12.0';
+const APP_VERSION = 'v4.13.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -470,6 +470,7 @@ function Home(){
       <span class="dot" style="background:${C.orange}">${ico('check',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.orange};display:block">Retour attendu</span>
       <span style="font-weight:700;display:block">${esc(pend[pend.length-1].title)} · ${DOW[pend[pend.length-1].day]} ${shortDate(pend[pend.length-1].date)}</span><span class="muted" style="font-size:12.5px">Comment ça s'est passé ? Ton retour ajuste le plan.</span></span>${ico('next')}</button>` : ''}
     ${adj ? adjBanner(adj) : ''}
+    ${new Date().getHours()>=17 ? nightCard(true) : ''}
     ${(() => { const nw = PLAN[curWeek().num], dw = new Date().getDay(); return nw && wkOpen(nw) && (dw===6||dw===0) && !S.wk[nw.num] ? `<button class="card row" style="text-align:left;border:2px solid ${C.teal}" onclick="wkOpenSet(${nw.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.teal};display:block">Semaine prochaine</span><span style="font-weight:700;display:block">${wLab(nw)} · ${fmtN(nw.km)} km prévus</span><span class="muted" style="font-size:12.5px">Une sortie en plus ou en moins ? Plus ou moins d'intensité ?</span></span>${ico('next')}</button>` : ''; })()}
     <button onclick="openS('${n.code}')" style="background:${k.c};color:${C.bg};border-radius:28px;padding:20px;display:flex;flex-direction:column;gap:10px;text-align:left">
       <div class="mono" style="font-size:11px">Prochaine · ${DOW[n.day]} ${shortDate(n.date)}${isKey(n)?' · séance clé':''}</div>
@@ -1058,9 +1059,34 @@ const routCard = k => { const r=ROUT[k], mat=/rouleau|élastique/.test(r.sub);
   return `<button class="card" style="text-align:left;padding:12px 14px;display:flex;align-items:center;gap:12px" onclick="setRoutine('${k}')">
     <span class="anton" style="font-size:24px;color:var(--teal);min-width:44px;text-align:center;line-height:1">${routMin(k)}<span style="font-size:11px;display:block;font-family:inherit;font-weight:700">min</span></span>
     <span style="flex:1;min-width:0"><span style="font-weight:800;font-size:14.5px;display:block">${esc(r.n)}</span><span class="muted" style="font-size:12px">${esc(r.sub.split(' · ')[0])} · ${r.ex.length} mouvements${mat?' · <span style="color:var(--orange)">'+esc(r.sub.split(' · ').slice(-1)[0])+'</span>':''}</span></span>${ico('next',18)}</button>`; };
+
+/* v4.13 : programme du soir (focus chaine posterieure, choix du coureur le 05/11/2026).
+   Une routine par soir, du lundi au dimanche ; uniquement des routines lentes et passives. */
+const NIGHT = ['M14','M5','M12','M9','M14','M13','M15'];
+const NIGHT_D = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const isoOf = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const nightIdx = d => (d.getDay()+6)%7;
+const mobOn = iso => (S.mobDone||[]).some(x=>x.startsWith(iso+'|'));
+function nightStats(){ const t=new Date(); let streak=0, w=0;
+  for (let i=0;i<60;i++){ const d=new Date(t); d.setDate(t.getDate()-i); const ok=mobOn(isoOf(d)); if (i<7&&ok) w++; if (ok) streak++; else if (i>0) break; }
+  return {streak, w}; }
+function nightCard(home){ const t=new Date(), i=nightIdx(t), k=NIGHT[i], done=mobOn(isoOf(t)), st=nightStats();
+  return `<button class="card row" style="text-align:left;${done?'':'border:2px solid '+C.teal}" onclick="V.mobG='sleep';setRoutine('${k}');${home?"go('ppg')":''}">
+    <span class="kdot" style="background:${done?C.surface2:C.teal}">${done?ico('check',20):ico('reset',20)}</span>
+    <span style="flex:1;min-width:0"><span class="mono" style="color:${C.teal};display:block">Routine du soir · ${NIGHT_D[i]}</span>
+    <span style="font-weight:700;display:block">${esc(ROUT[k].n)} · ${routMin(k)} min${done?' · faite ✓':''}</span>
+    <span class="muted" style="font-size:12.5px">${st.w}/7 soirs cette semaine${st.streak>1?' · série de '+st.streak+' jours':''}</span></span>${ico('next')}</button>`; }
+function nightWeek(){ const t=new Date(), ti=nightIdx(t), mon=new Date(t); mon.setDate(t.getDate()-ti);
+  return `<div class="card" style="padding:14px 16px"><div class="row" style="justify-content:space-between"><span style="font-weight:800;font-size:16px;color:var(--teal)">Programme du soir</span><span class="muted" style="font-size:12px">focus chaîne postérieure</span></div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:10px">${NIGHT.map((k,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); const iso=isoOf(d), ok=mobOn(iso), cur=i===ti;
+      return `<button class="row" style="gap:10px;padding:7px 8px;border-radius:12px;text-align:left;${cur?'background:var(--surface-2)':''}" onclick="V.mobG='sleep';setRoutine('${k}')">
+        <span style="width:20px;color:${ok?C.teal:C.muted}">${ok?'✓':i<ti?'·':'◇'}</span><span style="width:78px;font-size:12.5px;${cur?'font-weight:800':''}" class="${cur?'':'muted'}">${NIGHT_D[i]}</span>
+        <span style="flex:1;font-size:13px;font-weight:${cur?800:600}">${esc(ROUT[k].n)}</span><span class="muted" style="font-size:12px">${routMin(k)} min</span></button>`; }).join('')}</div>
+    <p class="muted" style="font-size:11.5px;margin:8px 0 0">Matériel : élastique le lundi et le vendredi, rouleau le week-end. Toute routine de mobilité faite le jour compte.</p></div>`; }
 function mobHomeView(){
   const n = mobLib().length, nr = Object.values(ROUT).filter(r=>r.mob).length;
   return `<div><div class="anton h1">Mobilité</div><div class="muted" style="font-size:12.5px;margin-top:5px">${nr} routines · ${n} mouvements · choisis un groupe</div></div>
+    ${nightWeek()}
     <div style="display:flex;flex-direction:column;gap:8px">${MOB_GROUPS.map(g=>{ const ks=[...new Set(groupKeys(g))];
       return `<button class="card" style="text-align:left;padding:14px 16px;display:flex;align-items:center;gap:12px;${g.k==='run'?'border:1px solid rgba(255,107,53,.45)':''}" onclick="mobGo('${g.k}')">
         <span style="flex:1;min-width:0"><span style="font-weight:800;font-size:16px;display:block;color:var(--${g.col})">${esc(g.n)}</span><span class="muted" style="font-size:12.5px">${esc(g.sub)} · ${ks.length} routines</span></span>${ico('next',18)}</button>`; }).join('')}
