@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.15.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.15.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.15.0';
+const APP_VERSION = 'v4.15.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -466,7 +466,6 @@ function Home(){
     <div class="row muted" style="gap:12px;font-size:11.5px;flex-wrap:wrap;margin-top:-4px">${['done','part','miss','cur','fut'].map(k=>`<span class="row" style="gap:5px"><i class="lg" style="background:${HX_COL[k][0]};box-shadow:inset 0 0 0 1.5px ${HX_COL[k][1]}"></i>${HX_LABEL[k]}</span>`).join('')}<span class="row" style="gap:5px"><i class="lg" style="box-shadow:inset 0 0 0 2px ${C.amber}"></i>course</span></div>
     <div class="grid3">${up.map(m => { const d=daysTo(m.date); return `<div class="card" style="border-radius:20px;padding:12px 14px">
       <div class="mono muted" style="font-size:10px">${m.l}</div><div class="anton" style="font-size:28px;color:${m.c}">${d>0?'J-'+d:d===0?'Jour J':'✓'}</div><div class="muted" style="font-size:11px">${m.sub}</div></div>`; }).join('')}</div>
-    ${cwk.pre ? '' : weekTiles(cwk)}
     ${pend.length ? `<button class="card row" style="text-align:left;border:2px solid ${C.orange}" onclick="startFlow('${pend[pend.length-1].code}')">
       <span class="dot" style="background:${C.orange}">${ico('check',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.orange};display:block">Retour attendu</span>
       <span style="font-weight:700;display:block">${esc(pend[pend.length-1].title)} · ${DOW[pend[pend.length-1].day]} ${shortDate(pend[pend.length-1].date)}</span><span class="muted" style="font-size:12.5px">Comment ça s'est passé ? Ton retour ajuste le plan.</span></span>${ico('next')}</button>` : ''}
@@ -525,6 +524,7 @@ function Plan(){
         <button class="pill" style="background:${C.surface2};font-size:13px;padding:10px" onclick="openLayer('acts')">Activités</button></div>
       <button class="pill" style="width:100%;margin-top:8px;background:${C.surface2};font-size:13px;padding:10px" onclick="bilanOpen(${w.num})">${ico('edit',16)} Mon bilan pour Claude</button>
     </div>
+    ${w.pre ? '' : weekTiles(w)}
     ${adj ? adjBanner(adj) : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left;border:2px solid ${S.wk[w.num]?C.teal:C.surface2}" onclick="wkOpenSet(${w.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajuster ma semaine</span><span class="muted" style="font-size:12.5px">${wkSummary(w)||'Sorties en plus ou en moins, intensité'}</span></span>${ico('next',18)}</button>` : ''}
     ${wkOpen(w) ? `<button class="card row" style="text-align:left" onclick="xsOpen(${w.num})"><span class="kdot" style="background:${C.orange}">${ico('arrow',20)}</span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Ajouter une sortie</span><span class="muted" style="font-size:12.5px">Un footing EF en plus, avec des amis par exemple</span></span>${ico('next',18)}</button>` : ''}
