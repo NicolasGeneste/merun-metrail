@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.14.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.14.1 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.14.0';
+const APP_VERSION = 'v4.14.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1727,11 +1727,15 @@ window.ivPullNow = () => ivRun('pull', () => ivPull(false));
    et renvoie les seances deja envoyees dont le plan a ete ajuste (allegement, etc.) */
 async function ivAuto(force){
   const st = ivState(); if (!ivCode() || (!st.auto && !force) || V.ivBusy || !navigator.onLine) return;
-  if (!force && st.lastAuto && Date.now() - st.lastAuto < 3*3600e3) return;
-  st.lastAuto = Date.now(); save();
+  /* v4.14.1 : les sorties sont relues a chaque ouverture (10 min mini entre deux lectures) ;
+     l'envoi des seances vers la montre reste limite a une fois toutes les 3 h. */
+  const now = Date.now(), pullOk = force || !st.lastAutoPull || now - st.lastAutoPull > 10*60e3, pushOk = force || !st.lastAuto || now - st.lastAuto > 3*3600e3;
+  if (!pullOk && !pushOk) return;
+  st.lastAutoPull = now; if (pushOk) st.lastAuto = now; save();
   try {
     if (!st.checked || Date.now() - Date.parse(st.checked) > 864e5){ try { const d = await ivCall('ping'); st.run = d.run || null; st.checked = new Date().toISOString(); save(); } catch(e){} }
     await ivPull(true);
+    if (!pushOk){ render(); return; }
     const sk = st.skip || {}, stale = ALL.filter(s => ivSendable(s) && ivStatus(s)==='stale' && !sk[s.code]);
     const due = ivDue().filter(s => !stale.includes(s)), todo = [...stale, ...due];
     if (todo.length){ await ivPush(todo, true); toast(`✓ Montre à jour : ${due.length?due.length+' nouvelle(s)':''}${due.length&&stale.length?', ':''}${stale.length?stale.length+' ajustée(s)':''}`); }
