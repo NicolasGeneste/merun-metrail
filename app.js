@@ -1,4 +1,4 @@
-/* MeRun-MeTrail v4.11.0 - genere : core.js + fitparser.js + ui.js */
+/* MeRun-MeTrail v4.12.0 - genere : core.js + fitparser.js + ui.js */
 /* ================================================================
    MeRun-MeTrail v3 - noyau : allures, structure des seances, encodeur FIT
    ================================================================ */
@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.11.0';
+const APP_VERSION = 'v4.12.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -602,7 +602,7 @@ function Detail({code}){
     ${!isDone(s) && !frozen(s) && weekEnd(PLAN[s.week-1]) >= todayIso() ? `<button class="pill" style="background:${C.surface};padding:14px" onclick="mvOpen('${code}')">${s.movedFrom?'Déplacée (prévue '+shortDate(s.movedFrom)+') · changer':'Déplacer la séance'}</button>` : ''}
     ${ivDetailBlock(s)}
     ${ivCode() ? '' : `<button class="pill" style="background:${C.surface};padding:16px" onclick="exportOne('${code}')">Envoyer au Garmin (.fit)</button>`}
-    ${frozen(s)||s.kind==='q'?'':`<button class="card row" style="text-align:left" onclick="V.routine='M1';tReset(true);go('ppg')"><span class="kdot" style="background:${C.teal}">${ico('reset',20)}</span><span style="flex:1"><span style="font-weight:800;display:block">Mobilité après course</span><span class="muted" style="font-size:12.5px">Jambes · 5 mouvements · 10 min</span></span>${ico('next',18)}</button>`}
+    ${frozen(s)||s.kind==='q'?'':`<button class="card row" style="text-align:left" onclick="V.routine='M1';V.mobOpen=true;V.mobG='run';tReset(true);go('ppg')"><span class="kdot" style="background:${C.teal}">${ico('reset',20)}</span><span style="flex:1"><span style="font-weight:800;display:block">Mobilité après course</span><span class="muted" style="font-size:12.5px">Jambes · 5 mouvements · 10 min</span></span>${ico('next',18)}</button>`}
   </div>`;
 }
 window.undo = code => { delete S.done[code]; delete S.fb[code]; S.acts.forEach(a=>{ if(a.code===code) delete a.code; }); save(); render(); toast('↺ Séance annulée'); };
@@ -880,7 +880,57 @@ const ROUT = {
     ['Ouverture de hanche debout',1,'1 min',60,0,"Debout, abdos serrés : monte le genou à 90°, ouvre-le vers l'extérieur, repose le pied. Alterne les côtés.",'Hanches','actif',0],
     ['Ischios dynamiques',1,'1 min',60,0,"Debout, monte le genou à 90° puis tends la jambe au maximum, contrôlé. Change de jambe à chaque répétition.",'Ischio-jambiers','actif',0],
     ['Mollets sur une jambe',1,'1 min',60,0,"Mains contre un mur : monte sur la pointe des pieds, lève un pied, puis redescends lentement le talon de la jambe d'appui. Alterne.",'Mollets','actif',0]]},
+  /* v4.12 : routines inspirees du 2e enregistrement GOWOD (04/11/2026, protocoles Sommeil et Flow personnalise) :
+     memes enchainements, durees reelles, consignes reecrites. */
+  M12:{mob:true,n:'Sommeil express',sub:'Au lit · ~7 min · sans matériel',ex:[
+    ['Trapèzes',2,'1 min / côté',60,5,"Assis, un bras tiré vers le sol. Penche la tête du côté opposé et tourne légèrement le regard vers le bas.",'Cou, trapèzes','passif',1],
+    ['Torsion allongée jambe tendue',2,'1 min / côté',60,5,"Sur le dos, une jambe tendue. Ramène l'autre genou plié à 90° de l'autre côté et tiens-le au sol avec la main. Bras opposé posé au sol, relâché.",'Fessiers, dos, pectoraux','passif',1],
+    ['Ischios assis, une jambe pliée',2,'1 min / côté',60,5,"Une jambe tendue, plante de l'autre pied contre l'intérieur de la cuisse. Laisse le dos s'enrouler et attrape le pied de la jambe tendue.",'Ischio-jambiers, mollets, lombaires','passif',1],
+    ['Prière (dorsaux)',1,'1 min',60,0,"À genoux, fesses vers les talons, bras tendus devant, front posé. Expire longuement.",'Dorsaux, épaules','passif',0]]},
+  M13:{mob:true,n:'Sommeil rouleau',sub:'Le soir · ~14 min · rouleau de massage',ex:[
+    ['Rouleau bas du dos',1,'1 min',60,0,"Rouleau sous les lombaires, pieds au sol. Roule lentement, appui modéré : tu dois rester détendu.",'Lombaires','massage',0],
+    ['Fente du chevalier',2,'1 min / côté',60,5,"Grande fente, genou arrière au sol, buste droit. Rentre le nombril, serre les fessiers et descends le bassin.",'Psoas, quadriceps','passif',1],
+    ['Avant-bras au sol',1,'1 min',60,0,"À genoux, paumes à plat au sol, doigts tournés vers toi, bras tendus. Recule doucement les épaules derrière les poignets.",'Avant-bras','passif',0],
+    ['Triceps derrière la tête',2,'1 min / côté',60,5,"Main dans le dos, le plus bas possible. L'autre main tire doucement le coude vers l'arrière, abdos serrés.",'Triceps, épaules','passif',1],
+    ['Mains accrochées dans le dos',2,'1 min / côté',60,5,"Buste droit, une main passe par-dessus l'épaule, l'autre par le bas du dos. Accroche les doigts (ou une serviette) et respire lentement.",'Épaules, triceps','passif',1],
+    ['Ischios assis, une jambe pliée',2,'1 min / côté',60,5,"Une jambe tendue, plante de l'autre pied contre la cuisse. Dos relâché, attrape le pied de la jambe tendue.",'Ischio-jambiers, mollets','passif',1],
+    ['Pigeon',2,'1 min / côté',60,5,"Jambe avant pliée devant toi, jambe arrière tendue. Penche le buste vers l'avant et respire.",'Fessiers','passif',1],
+    ['Torsion allongée jambe tendue',2,'1 min / côté',60,5,"Sur le dos, une jambe tendue, l'autre genou plié ramené de l'autre côté et tenu au sol. Bras opposé relâché.",'Fessiers, dos, pectoraux','passif',1]]},
+  M14:{mob:true,n:'Chaîne postérieure',sub:'Jour de repos · ~6 min · élastique',ex:[
+    ['Écart debout',1,'1 min',60,0,"Pieds très écartés, jambes tendues. Penche le buste vers l'avant et descends les coudes vers le sol si tu peux.",'Adducteurs, ischios','passif',0],
+    ['Charnière au mur',1,'1 min',60,0,"Mains à plat contre le mur, genoux légèrement fléchis. Recule le bassin et laisse le thorax descendre vers le sol, dos naturel.",'Épaules, dorsaux, ischios','passif',0],
+    ['Squat au mur avec élastique',1,'1 min',60,0,"Allongé, pieds à plat contre le mur, fesses près du mur, élastique autour des genoux. Pousse les genoux vers l'extérieur et relâche, bras le long du corps.",'Hanches, adducteurs','actif',0],
+    ['Fente du chevalier',2,'1 min / côté',60,5,"Grande fente, genou arrière au sol, buste droit. Rentre le nombril, serre les fessiers et descends le bassin.",'Psoas, quadriceps','passif',1],
+    ['Prière (dorsaux)',1,'1 min',60,0,"À genoux, bras tendus devant, paumes au sol, fesses vers les talons.",'Dorsaux, épaules','passif',0]]},
+  M15:{mob:true,n:'Flow complet rouleau',sub:'Jour de repos · ~14 min · rouleau de massage',ex:[
+    ['Squat cosaque tenu',2,'1 min / côté',60,5,"Jambes très écartées, descends sur une jambe, talon au sol. L'autre jambe reste tendue, pointe du pied vers le haut. Tiens la position.",'Adducteurs, chevilles','passif',1],
+    ['Rouleau haut du dos',1,'1 min',60,0,"Rouleau au milieu du dos, doigts croisés derrière la nuque, coudes vers l'avant. Laisse le dos s'étendre lentement par-dessus le rouleau, puis reviens.",'Haut du dos','massage',0],
+    ['Ouverture en T',2,'1 min / côté',60,5,"Fente avant, genou vers l'extérieur. Main au sol à l'intérieur du pied, puis ouvre l'autre bras vers le plafond en suivant du regard.",'Hanches, haut du dos','actif',1],
+    ['Fente puis ischios',2,'1 min / côté',60,5,"Alterne lentement : fente buste droit, puis recule le bassin en tendant la jambe avant, buste penché vers le pied.",'Psoas, ischios','actif',1],
+    ['Mollets en chien tête en bas',1,'1 min',60,0,"Chien tête en bas, bras tendus, bassin haut. Plie un genou puis l'autre en poussant le talon opposé vers le sol.",'Mollets, ischios','actif',0],
+    ['La tortue',1,'1 min',60,0,"Assis, plantes des pieds l'une contre l'autre, assez loin devant toi. Passe les mains sous les jambes et enroule tout le dos et la tête.",'Dos, nuque','passif',0],
+    ['Grenouille active',1,'1 min',60,0,"À quatre pattes, genoux très écartés, avant-bras au sol. Recule lentement les fesses vers l'arrière puis reviens.",'Adducteurs, hanches','actif',0],
+    ["Cobra puis posture de l'enfant",1,'1 min',60,0,"Ventre au sol, relève le buste sur les mains en gardant les hanches au sol, puis recule les fesses vers les talons, bras tendus devant. Lentement.",'Abdos, dos, dorsaux','actif',0],
+    ["Arrière de l'épaule",2,'1 min / côté',60,5,"Bras tendu devant toi, ramène-le contre la poitrine avec l'autre main, épaule basse, abdos serrés.",'Épaules','passif',1],
+    ['Prière (dorsaux)',1,'1 min',60,0,"À genoux, bras tendus devant, paumes au sol. Pousse activement les mains vers l'avant et les fesses vers les talons.",'Dorsaux, épaules','actif',0]]},
 };
+/* v4.12 : groupes de routines (une routine peut etre dans plusieurs groupes). */
+const MOB_GROUPS = [
+  {k:'run',n:'Course à pied',sub:'Avant, après, prévention',col:'orange',sec:[['Avant une séance',['M11','M4']],['Après une sortie',['M6','M1']],['Prévention',['M7','M14']]]},
+  {k:'sleep',n:'Sommeil & soir',sub:'Lent, au sol, pour bien dormir',col:'teal',sec:[['',['M5','M12','M13','M9']]]},
+  {k:'flow',n:'Hanches & dos',sub:'Jour de repos',col:'teal',sec:[['',['M2','M8','M14','M15']]]},
+  {k:'desk',n:'Bureau & haut du corps',sub:'Après une journée assis',col:'teal',sec:[['',['M10','M3']]]},
+  {k:'gear',n:'Avec matériel',sub:'Rouleau de massage ou élastique',col:'teal',sec:[['Rouleau',['M7','M13','M15']],['Élastique',['M14']]]},
+];
+const mobGroup = k => MOB_GROUPS.find(g=>g.k===k);
+const groupKeys = g => g.sec.flatMap(s=>s[1]);
+const routMin = r => Math.round(ROUT[r].ex.reduce((a,e)=>a+e[1]*e[3]+(e[1]-1)*e[4],0)/60);
+/* Bibliotheque : tous les mouvements des routines MeRun, sans doublon (consigne de la 1re routine qui l'utilise). */
+function mobLib(){ const m=new Map();
+  Object.entries(ROUT).forEach(([r,R])=>{ if(!R.mob) return; R.ex.forEach((e,i)=>{ const x=m.get(e[0]); if(x){ if(!x.used.includes(r)) x.used.push(r); } else m.set(e[0],{n:e[0],r,i,e,used:[r]}); }); });
+  return [...m.values()].sort((a,b)=>a.n.localeCompare(b.n,'fr')); }
+const LIB_ZONES = ['Mollets','Ischios','Quadriceps','Hanches','Fessiers','Adducteurs','Psoas','Dos','Lombaires','Épaules','Cou'];
+const zoneHit = (z,txt) => { const t=txt.toLowerCase(); return z==='Ischios' ? /ischio/.test(t) : z==='Dos' ? /dos|dorsaux/.test(t) : z==='Cou' ? /cou|trapèze|nuque/.test(t) : t.includes(z.toLowerCase()); };
 /* v4.5 : demo de chaque mouvement (pages video de kines : Physitrack, The Prehab Guys, Rehab Hero ;
    recherche YouTube quand aucune page n'a ete trouvee) + videos perso stockees en local (IndexedDB, jamais envoyees). */
 const PT='https://us.physitrack.com/home-exercise-video/', YT='https://www.youtube.com/results?search_query=';
@@ -930,6 +980,17 @@ const MOB_LINK = {
   'Ouverture de hanche debout':[YT+'standing+hip+opener+knee+circle','YouTube (recherche)'],
   'Ischios dynamiques':[YT+'dynamic+hamstring+kick+standing','YouTube (recherche)'],
   'Mollets sur une jambe':[YT+'single+leg+calf+raise+eccentric+wall','YouTube (recherche)'],
+  'Torsion allongée jambe tendue':[YT+'supine+spinal+twist+stretch+knee+held','YouTube (recherche)'],
+  'Avant-bras au sol':[YT+'kneeling+wrist+flexor+stretch+fingers+pointing+back','YouTube (recherche)'],
+  'Mains accrochées dans le dos':[YT+'shoulder+stretch+hands+clasped+behind+back+cow+face','YouTube (recherche)'],
+  'Écart debout':[YT+'wide+leg+standing+forward+bend','YouTube (recherche)'],
+  'Charnière au mur':[YT+'wall+hip+hinge+shoulder+stretch','YouTube (recherche)'],
+  'Squat au mur avec élastique':[YT+'supine+wall+squat+stretch+band+knees','YouTube (recherche)'],
+  'Squat cosaque tenu':[YT+'cossack+squat+hold+stretch','YouTube (recherche)'],
+  'Rouleau haut du dos':[YT+'foam+roller+thoracic+extension','YouTube (recherche)'],
+  'Mollets en chien tête en bas':[YT+'downward+dog+calf+stretch+pedaling','YouTube (recherche)'],
+  'La tortue':[YT+'seated+turtle+stretch+back','YouTube (recherche)'],
+  'Grenouille active':[YT+'active+frog+stretch+rocking','YouTube (recherche)'],
 };
 /* Videos perso : base IndexedDB "merun_media", magasin "vids", cle = nom du mouvement. */
 const VID = { db:null, has:new Set(), url:{} };
@@ -958,10 +1019,10 @@ function MyVid(l){ const e=ROUT[l.r].ex[l.i], k=e[0];
     <div class="row" style="gap:8px"><button class="pill" style="flex:1;background:${C.surface2}" onclick="closeLayer();vidAdd('${l.r}',${l.i})">Remplacer</button>
       <button class="pill" style="flex:1;background:${C.surface2};color:${C.pink}" onclick="vidDel('${l.r}',${l.i})">Supprimer</button></div>
     <p class="muted" style="font-size:11.5px">La vidéo n'est jamais envoyée en ligne. Elle disparaît si tu effaces les données du site dans le navigateur, et elle n'existe pas sur tes autres appareils.</p></div>`; }
-function mobBtns(i){ const e=curEx()[i], L=MOB_LINK[e[0]], mine=VID.has.has(e[0]);
+function mobBtns(i,r=V.routine){ const e=ROUT[r].ex[i], L=MOB_LINK[e[0]], mine=VID.has.has(e[0]);
   return `<div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap">
     ${L?`<a class="pill" href="${L[0]}" target="_blank" rel="noopener" style="background:var(--surface-2);font-size:12px;padding:7px 12px;text-decoration:none;color:inherit">${ico('play',13)} Voir le mouvement <span class="muted" style="font-size:10.5px">· ${L[1]}</span></a>`:''}
-    <button class="pill" style="background:${mine?C.teal:'var(--surface-2)'};color:${mine?C.bg:'inherit'};font-size:12px;padding:7px 12px" onclick="${mine?'vidOpen':'vidAdd'}('${V.routine}',${i})">${mine?ico('play',13)+' Ma vidéo':'+ Ajouter ma vidéo'}</button></div>`; }
+    <button class="pill" style="background:${mine?C.teal:'var(--surface-2)'};color:${mine?C.bg:'inherit'};font-size:12px;padding:7px 12px" onclick="${mine?'vidOpen':'vidAdd'}('${r}',${i})">${mine?ico('play',13)+' Ma vidéo':'+ Ajouter ma vidéo'}</button></div>`; }
 const T = { run:false, ex:0, set:1, phase:'ready', remain:0, h:null };
 const curEx = () => ROUT[V.routine].ex;
 const isMob = () => !!ROUT[V.routine].mob;
@@ -969,11 +1030,14 @@ function PPG(){
   const ex = curEx(), mob = isMob();
   const list = Object.entries(ROUT).filter(([k,r]) => !!r.mob === mob);
   const tot = ex.reduce((a,e)=>a+e[1]*e[3]+(e[1]-1)*e[4],0);
+  const segBar = `<div class="seg teal">${[['renfo','Renfo'],['mob','Mobilité']].map(([k,l])=>`<button class="${(k==='mob')===mob?'on':''}" onclick="${k==='mob'?'mobHome()':(mob?"setRoutine('P1')":"setRoutine(V.routine)")}">${l}</button>`).join('')}</div>`;
+  if (mob && !V.mobOpen) return `<div class="pad">${segBar}${V.mobG && mobGroup(V.mobG) ? mobGroupView(mobGroup(V.mobG)) : mobHomeView()}</div>`;
+  const g = mob && mobGroup(V.mobG);
   return `<div class="pad">
-    <div class="seg teal">${[['renfo','Renfo','P1'],['mob','Mobilité','M1']].map(([k,l,def])=>`<button class="${(k==='mob')===mob?'on':''}" onclick="setRoutine('${(k==='mob')===mob?V.routine:def}')">${l}</button>`).join('')}</div>
-    <div><div class="anton h1">${mob?'Mobilité':'Renfo'}</div><div class="muted" style="font-size:12.5px;margin-top:5px">${ROUT[V.routine].sub}${mob?'':" · durées d'effort indicatives"}</div></div>
-    ${mob ? `<div class="grid2" style="gap:8px">${list.map(([k,r])=>`<button style="text-align:left;padding:11px 12px;border-radius:16px;background:${V.routine===k?C.teal:'var(--surface)'};color:${V.routine===k?C.bg:'inherit'}" onclick="setRoutine('${k}')"><span style="font-weight:800;font-size:13.5px;display:block">${r.n}</span><span style="font-size:11px;opacity:.75">${r.sub.split(' · ').slice(-2).join(' · ')}</span></button>`).join('')}</div>`
-      : `<div class="seg" style="flex-wrap:wrap">${list.map(([k,r])=>`<button class="${V.routine===k?'on':''}" onclick="setRoutine('${k}')">${r.n}</button>`).join('')}</div>`}
+    ${segBar}
+    ${mob?`<button class="row muted" style="gap:6px;font-size:13px;font-weight:700;padding:2px 0" onclick="mobBack()">${ico('back',16)} ${g?esc(g.n):'Mobilité'}</button>`:''}
+    <div><div class="anton h1">${mob?esc(ROUT[V.routine].n):'Renfo'}</div><div class="muted" style="font-size:12.5px;margin-top:5px">${ROUT[V.routine].sub}${mob?'':" · durées d'effort indicatives"}</div></div>
+    ${mob ? '' : `<div class="seg" style="flex-wrap:wrap">${list.map(([k,r])=>`<button class="${V.routine===k?'on':''}" onclick="setRoutine('${k}')">${r.n}</button>`).join('')}</div>`}
     <div class="ring" id="ring"><div><div class="mono muted" id="tPhase"></div><div class="anton" style="font-size:66px;line-height:1" id="tTime"></div>
       <div style="font-size:13px;max-width:170px;margin:4px auto 0" id="tEx"></div><div class="mono muted" style="margin-top:6px" id="tSet"></div></div></div>
     <div class="ctl"><button onclick="tReset()" aria-label="Réinitialiser">${ico('reset')}</button><button class="main" id="tPlay" onclick="tToggle()" aria-label="Lecture / pause"></button><button onclick="tSkip()" aria-label="Passer">${ico('skip')}</button></div>
@@ -985,7 +1049,49 @@ function PPG(){
     <p class="muted" style="font-size:12px">${mob?`${(S.mobDone||[]).length} séance(s) de mobilité enregistrée(s). Étirements passifs après la course ou le soir ; avant une séance, seulement la routine dynamique.`:S.ppgDone.length+' séance(s) de PPG enregistrée(s).'}</p>
   </div>`;
 }
-window.setRoutine = k => { V.routine=k; tReset(true); render(); };
+window.setRoutine = k => { V.routine=k; if (ROUT[k].mob){ V.mobOpen=true; const g=mobGroup(V.mobG); if (!g || !groupKeys(g).includes(k)) V.mobG=(MOB_GROUPS.find(x=>groupKeys(x).includes(k))||{}).k||null; } tReset(true); render(); window.scrollTo&&window.scrollTo(0,0); };
+/* v4.12 : navigation Mobilite = groupes > routines > minuterie, plus la bibliotheque des mouvements. */
+window.mobHome = () => { if (!ROUT[V.routine].mob) V.routine='M1'; V.mobOpen=false; V.mobG=null; tReset(true); render(); };
+window.mobGo = k => { V.mobG=k; V.mobOpen=false; tReset(true); render(); };
+window.mobBack = () => { V.mobOpen=false; tReset(true); render(); };
+const routCard = k => { const r=ROUT[k], mat=/rouleau|élastique/.test(r.sub);
+  return `<button class="card" style="text-align:left;padding:12px 14px;display:flex;align-items:center;gap:12px" onclick="setRoutine('${k}')">
+    <span class="anton" style="font-size:24px;color:var(--teal);min-width:44px;text-align:center;line-height:1">${routMin(k)}<span style="font-size:11px;display:block;font-family:inherit;font-weight:700">min</span></span>
+    <span style="flex:1;min-width:0"><span style="font-weight:800;font-size:14.5px;display:block">${esc(r.n)}</span><span class="muted" style="font-size:12px">${esc(r.sub.split(' · ')[0])} · ${r.ex.length} mouvements${mat?' · <span style="color:var(--orange)">'+esc(r.sub.split(' · ').slice(-1)[0])+'</span>':''}</span></span>${ico('next',18)}</button>`; };
+function mobHomeView(){
+  const n = mobLib().length, nr = Object.values(ROUT).filter(r=>r.mob).length;
+  return `<div><div class="anton h1">Mobilité</div><div class="muted" style="font-size:12.5px;margin-top:5px">${nr} routines · ${n} mouvements · choisis un groupe</div></div>
+    <div style="display:flex;flex-direction:column;gap:8px">${MOB_GROUPS.map(g=>{ const ks=[...new Set(groupKeys(g))];
+      return `<button class="card" style="text-align:left;padding:14px 16px;display:flex;align-items:center;gap:12px;${g.k==='run'?'border:1px solid rgba(255,107,53,.45)':''}" onclick="mobGo('${g.k}')">
+        <span style="flex:1;min-width:0"><span style="font-weight:800;font-size:16px;display:block;color:var(--${g.col})">${esc(g.n)}</span><span class="muted" style="font-size:12.5px">${esc(g.sub)} · ${ks.length} routines</span></span>${ico('next',18)}</button>`; }).join('')}
+      <button class="card" style="text-align:left;padding:14px 16px;display:flex;align-items:center;gap:12px;background:var(--surface-2)" onclick="openLayer('lib')">
+        <span style="flex:1"><span style="font-weight:800;font-size:16px;display:block">Bibliothèque des mouvements</span><span class="muted" style="font-size:12.5px">Les ${n} mouvements, recherche et filtre par zone</span></span>${ico('next',18)}</button></div>
+    <p class="muted" style="font-size:12px">${(S.mobDone||[]).length} séance(s) de mobilité enregistrée(s). Étirements passifs après la course ou le soir ; avant une séance, seulement une routine dynamique.</p>`; }
+function mobGroupView(g){
+  return `<button class="row muted" style="gap:6px;font-size:13px;font-weight:700;padding:2px 0" onclick="mobHome()">${ico('back',16)} Tous les groupes</button>
+    <div><div class="anton h1" style="color:var(--${g.col})">${esc(g.n)}</div><div class="muted" style="font-size:12.5px;margin-top:5px">${esc(g.sub)}</div></div>
+    ${g.sec.map(([lab,ks])=>`${lab?`<div class="mono muted" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:4px">${esc(lab)}</div>`:''}<div style="display:flex;flex-direction:column;gap:8px">${ks.map(routCard).join('')}</div>`).join('')}`; }
+function Lib(){
+  const L = mobLib(), q=(V.libQ||'').toLowerCase(), z=V.libZ||'';
+  return `<div class="pad">${head('Bibliothèque', L.length+' mouvements des routines MeRun')}
+    <input id="libQ" type="search" placeholder="Rechercher un mouvement" value="${esc(V.libQ||'')}" oninput="libFilter(this.value)" style="width:100%;padding:12px 14px;border-radius:14px;border:0;background:var(--surface);color:inherit;font:inherit">
+    <div class="row" style="gap:6px;flex-wrap:wrap">${['',...LIB_ZONES].map(x=>`<button class="badge libz" data-z="${esc(x)}" style="padding:6px 10px;font-size:12px;background:${x===z?C.teal:'var(--surface-2)'};color:${x===z?C.bg:'var(--body)'}" onclick="libZone('${x}')">${x||'Toutes'}</button>`).join('')}</div>
+    <div id="libList" style="display:flex;flex-direction:column;gap:8px">${L.map(m=>{ const e=m.e, op=V.libOpen===m.n, show=libMatch(m,q,z);
+      return `<div class="ex libit" data-n="${esc(m.n.toLowerCase())}" data-z="${esc(e[6].toLowerCase())}" style="${show?'':'display:none'}"><div style="flex:1;min-width:0">
+        <button style="text-align:left;width:100%;display:flex;gap:10px;align-items:center" onclick="libToggle(${JSON.stringify(m.n).replace(/"/g,'&quot;')})">
+          <span style="flex:1"><span style="font-weight:700;font-size:14.5px;display:block">${esc(m.n)}</span><span class="muted" style="font-size:12px">${esc(e[6])} · ${({actif:'Actif',passif:'Passif',massage:'Massage'})[e[7]]||'Passif'}</span></span>${ico(op?'close':'next',16)}</button>
+        ${op?`<div style="font-size:12.5px;color:var(--body);margin-top:8px">${esc(e[5])}</div>${mobBtns(m.i,m.r)}
+          <div class="muted" style="font-size:11.5px;margin-top:10px">Dans ${m.used.length>1?'les routines':'la routine'} :</div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">${m.used.map(r=>`<button class="badge" style="padding:6px 10px;font-size:12px;background:rgba(0,212,184,.14);color:${C.teal}" onclick="libRoutine('${r}')">${esc(ROUT[r].n)} · ${routMin(r)} min</button>`).join('')}</div>`:''}
+      </div></div>`; }).join('')}</div>
+    <p class="muted" id="libNone" style="font-size:12.5px;${L.some(m=>libMatch(m,q,z))?'display:none':''}">Aucun mouvement ne correspond.</p></div>`; }
+const libMatch = (m,q,z) => (!q || m.n.toLowerCase().includes(q) || m.e[6].toLowerCase().includes(q)) && (!z || zoneHit(z,m.e[6]+' '+m.n));
+window.libFilter = v => { V.libQ=v; const q=v.toLowerCase(), z=V.libZ||'', L=mobLib(); let any=false;
+  document.querySelectorAll('.libit').forEach((el,i)=>{ const ok=libMatch(L[i],q,z); el.style.display=ok?'':'none'; any=any||ok; });
+  const nn=$('#libNone'); if (nn) nn.style.display=any?'none':''; };
+window.libZone = z => { V.libZ = V.libZ===z ? '' : z; render(); };
+window.libToggle = n => { V.libOpen = V.libOpen===n ? null : n; render(); };
+window.libRoutine = r => { V.libOpen=null; V.tab='ppg'; setRoutine(r); closeLayer(); };
 function ppgPaint(){
   const ex=curEx(), e=ex[T.ex]; if(!$('#ring')) return;
   const total = e ? (T.phase==='rest'?e[4]:e[3]) : 1, prog = total ? 1 - T.remain/total : 0;
@@ -2064,7 +2170,7 @@ function Bilan(l){
     <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan</button>
     <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié. Ajoute ta question à la fin, puis colle-le dans le projet « Entraînement » sur Claude.</p></div>`;
 }
-Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move});
+Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move, lib:Lib});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
 
 /* ---------------- import .fit ----------------
