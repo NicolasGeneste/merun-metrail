@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.16.0';
+const APP_VERSION = 'v4.17.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1748,18 +1748,21 @@ const ivDue = () => { const lim = iso(new Date(Date.now()+IV_AHEAD*864e5)), sk =
 /* Retour : sorties course a pied, dedoublonnees avec les .fit deja importes */
 async function ivPull(silent){
   const st = ivState(), t = todayIso();
-  const from = st.lastPull ? iso(new Date(Math.max(d8(st.lastPull).getTime()-3*864e5, Date.now()-30*864e5))) : iso(new Date(Date.now()-14*864e5));
+  let from = st.lastPull ? iso(new Date(Math.max(d8(st.lastPull).getTime()-3*864e5, Date.now()-30*864e5))) : iso(new Date(Date.now()-14*864e5));
+  /* v4.17 : relit les sorties des 14 derniers jours qui n'ont pas encore leur detail (bilan) */
+  const need = S.acts.filter(a => a.iv && !a.det && a.date >= iso(new Date(Date.now()-14*864e5))).map(a => a.date).sort()[0];
+  if (need && need < from) from = need;
   const d = await ivCall('activities', {oldest:from, newest:t});
   let n = 0, upd = 0;
   for (const a of d.acts || []){
     if (!a.date || !(a.km>0)) continue;
     const dup = S.acts.find(x => x.iv===a.id || (x.date===a.date && Math.abs(x.km-a.km)<0.05));
-    if (dup){ if (!dup.iv) dup.iv = a.id; if (!dup.zones && a.zones){ dup.zones = a.zones; upd++; } if (!dup.hr && a.hr){ dup.hr = a.hr; upd++; } continue; }
-    S.acts.push({date:a.date, km:a.km, dur:a.dur, hr:a.hr, zones:a.zones, iv:a.id, src:'intervals', name:a.name||null}); n++;
+    if (dup){ if (!dup.iv) dup.iv = a.id; if (!dup.zones && a.zones){ dup.zones = a.zones; upd++; } if (!dup.hr && a.hr){ dup.hr = a.hr; upd++; } if (a.det && !dup.det){ dup.det = a.det; upd++; } continue; }
+    S.acts.push({date:a.date, km:a.km, dur:a.dur, hr:a.hr, zones:a.zones, det:a.det||null, iv:a.id, src:'intervals', name:a.name||null}); n++;
   }
   st.lastPull = t; save();
   const waiting = pending().filter(s => S.acts.some(a => !a.code && Math.abs(daysTo(a.date)-daysTo(s.date))<=1)).length;
-  if (!silent || n) toast(n ? `✓ ${n} sortie(s) récupérée(s)${waiting?' · valide ta séance avec ton ressenti':''}` : upd ? '✓ Zones FC complétées' : 'Aucune nouvelle sortie');
+  if (!silent || n) toast(n ? `✓ ${n} sortie(s) récupérée(s)${waiting?' · valide ta séance avec ton ressenti':''}` : upd ? '✓ Détails des sorties complétés' : 'Aucune nouvelle sortie');
   return n;
 }
 window.ivPullNow = () => ivRun('pull', () => ivPull(false));
@@ -2278,6 +2281,24 @@ function Hist(){
 /* ---------------- Mon bilan pour Claude (v4.9.3) ----------------
    Resume texte de la semaine affichee, a copier dans la conversation de coaching.
    Rien n'est envoye nulle part : le texte est seulement copie dans le presse-papiers. */
+
+/* v4.17 : detail d'une sortie dans le bilan (tours au km, profil, derive, alertes), calcule par la fonction
+   Intervals sur les flux seconde par seconde. Equivalent texte d'un .fit, sans le GPS. */
+function detLines(a, s){
+  const D = a && a.det; if (!D) return [];
+  const P = x => x ? fmtPace(x) : '-', L = [], stable = !s || ['EF','EFD','RECUP','OPEN'].includes(mainZone(s));
+  if (s) L.push(`  Consigne du plan : ${ivDescription(s).split('\n').map(x=>x.replace(/^- /,'').trim()).filter(Boolean).join(' / ')}`);
+  L.push(`  FC : ${D.u145!=null?D.u145+' % du temps ≤ 145, ':''}${D.u150!=null?D.u150+' % ≤ 150, ':''}max ${D.hmax||'-'}${D.cad?' · cadence moy '+D.cad:''}`);
+  L.push('  Tours : ' + D.laps.map((l,i) => `km${i+1}${l.m<950?' ('+l.m+' m)':''} ${P(l.p)} FC ${l.hr||'-'}/${l.hm||'-'}${l.up!=null?' D+'+l.up:''}${l.cad?' c'+l.cad:''}`).join(' | '));
+  L.push(`  Profil par ${D.step} min (min FC/allure/alt) : ` + D.prof.map(p => `${p[0]}' ${p[1]||'-'}/${P(p[2])}${p[3]!=null?'/'+p[3]:''}`).join(' '));
+  if (D.pauses && D.pauses.length) L.push('  Pauses : ' + D.pauses.map(p => `${p.min}' (${p.km} km) ${p.s} s`).join(', '));
+  const dr = D.drift;
+  if (dr && dr.short!=null) L.push(`  Dérive : non calculée (bloc continu de ${dr.short} min après l'échauffement, 20 min minimum)`);
+  else if (dr){ const prog = dr.h1.p && dr.h2.p && dr.h2.p < dr.h1.p*0.95;
+    L.push(`  Dérive Pa:Hr brute (${dr.from}' → ${dr.to}') : ${P(dr.h1.p)} FC ${dr.h1.hr} D+${dr.h1.up??'-'} → ${P(dr.h2.p)} FC ${dr.h2.hr} D+${dr.h2.up??'-'} = ${dr.pct>0?'+':''}${dr.pct} %${!stable?' (séance non stable : non conclusif)':prog?' (2e moitié plus rapide : progressif, non conclusif)':''} · sans correction de pente`); }
+  if (D.lock >= 120) L.push(`  ⚠ FC calée sur la cadence pendant ${Math.round(D.lock/60)} min à allure lente : capteur poignet probablement faux sur ces passages`);
+  return L;
+}
 function bilanText(w){
   const t = todayIso(), fmtD = d => DOW[WDAYS[(d8(d).getDay()+6)%7]]+' '+shortDate(d);
   const z12 = z => { const s = z.reduce((a,x)=>a+x,0); return s ? Math.round((z[0]+z[1])/s*100) : null; };
@@ -2303,15 +2324,17 @@ function bilanText(w){
       line += ' → faite : ' + (bits.join(', ') || 'sans données');
     } else line += s.date < t ? ' → non faite' : ' → à venir';
     L.push(line);
+    if (isDone(s) && a) L.push(...detLines(a, s));
   }
   const extra = S.acts.filter(a => !a.code && inWeek(a.date, w));
   if (extra.length){ L.push(''); L.push('Sorties hors plan :');
-    for (const a of extra) L.push(`- ${fmtD(a.date)} · ${a.name||'sortie'} : ${fmtN(a.km)} km${a.dur?', '+fmtHMS(a.dur):''}${a.hr?', FC moy '+a.hr:''}${a.zones&&z12(a.zones)!=null?', '+z12(a.zones)+' % sous 150 bpm':''}`); }
+    for (const a of extra){ L.push(`- ${fmtD(a.date)} · ${a.name||'sortie'} : ${fmtN(a.km)} km${a.dur?', '+fmtHMS(a.dur):''}${a.hr?', FC moy '+a.hr:''}${a.zones&&z12(a.zones)!=null?', '+z12(a.zones)+' % sous 150 bpm':''}`); L.push(...detLines(a, null)); } }
   for (const a of extra) if (a.zones){ zt += a.zones.reduce((x,y)=>x+y,0); z12t += a.zones[0]+a.zones[1]; }
   L.push('');
   if (zt) L.push(`Temps sous 150 bpm (SV1) sur la semaine : ${Math.round(z12t/zt*100)} % (cible du plan : environ 80 %)`);
   const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
+  const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)`);
   L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
   L.push(''); L.push('Ma question : ');
   return L.join('\n');

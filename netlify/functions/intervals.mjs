@@ -8,7 +8,7 @@
      ping                              -> verifie la cle et renvoie le nom de l'athlete
      push   {workouts:[{external_id,name,date,description}]}   -> cree ou met a jour les seances (correspondance par external_id)
      delete {ids:[...]}                -> supprime des seances du calendrier
-     activities {oldest,newest}        -> sorties course a pied + temps par zone FC (bornes MeRun) */
+     activities {oldest,newest}        -> sorties course a pied + temps par zone FC (bornes MeRun) + detail (det) pour le bilan */
 const BASE = 'https://intervals.icu/api/v1';
 const env = k => (globalThis.Netlify && Netlify.env.get(k)) || process.env[k] || '';
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
@@ -43,6 +43,55 @@ function bestOver(t, d, D){
     if (d[j] - d[i] >= D){ const dt = t[j] - t[i]; if (dt > 0 && D / dt <= 7 && (best === null || dt < best)) best = dt; }
   }
   return best;
+}
+
+/* v4.17 : detail d'une sortie pour le bilan (equivalent texte d'un .fit) : tours au km, profil par minute,
+   pauses, temps sous 145/150, derive (Pa:Hr brute, methode Friel : 10 premieres minutes exclues,
+   bloc continu jusqu'a la 1re pause > 10 s, 20 min mini), alerte de blocage du capteur FC sur la cadence. */
+const pace = v => v > 0.5 ? Math.round(1000 / v) : null;
+function detOf(t, hr, d, alt, cad){
+  const n = t.length; if (!n || d.length !== n) return null;
+  const okH = hr.length === n, okA = alt.length === n, okC = cad.length === n;
+  const cmed = okC ? cad.filter(x => x > 0).sort((a,b)=>a-b) : [], cmul = cmed.length && cmed[cmed.length >> 1] < 120 ? 2 : 1;
+  const C = i => okC && cad[i] > 0 ? cad[i] * cmul : null;
+  /* pauses : trou de temps > 10 s ou quasi-immobilite > 10 s */
+  const pauses = []; let still = null;
+  for (let i = 1; i < n; i++){ const dt = t[i] - t[i-1], dd = d[i] - d[i-1];
+    if (dt > 10){ pauses.push({at: t[i-1], s: dt, km: d[i-1]}); still = null; continue; }
+    if (dt > 0 && dd / dt < 0.3){ if (still === null) still = i - 1; }
+    else if (still !== null){ const s = t[i-1] - t[still]; if (s > 10) pauses.push({at: t[still], s, km: d[still]}); still = null; } }
+  /* tours au km */
+  const laps = []; let i0 = 0;
+  const lap = (a, b) => { const dist = d[b] - d[a], dur = t[b] - t[a]; if (dist < 150 || dur <= 0) return;
+    let hs = 0, hn = 0, hm = 0, up = 0, cs = 0, cn = 0;
+    for (let i = a + 1; i <= b; i++){ if (okH && hr[i]){ hs += hr[i]; hn++; if (hr[i] > hm) hm = hr[i]; } const c = C(i); if (c){ cs += c; cn++; } if (okA){ const da = alt[i] - alt[i-1]; if (da > 0 && da < 5) up += da; } }
+    laps.push({m: Math.round(dist), s: dur, p: Math.round(dur / dist * 1000), hr: hn ? Math.round(hs / hn) : null, hm: hm || null, up: okA ? Math.round(up) : null, cad: cn ? Math.round(cs / cn) : null}); };
+  for (let i = 1; i < n; i++) if (Math.floor(d[i] / 1000) > Math.floor(d[i0] / 1000)){ lap(i0, i); i0 = i; }
+  lap(i0, n - 1);
+  /* profil par pas de minutes (50 points max) */
+  const T = t[n-1] - t[0], step = Math.max(1, Math.ceil(T / 60 / 50)) * 60, prof = [];
+  for (let s0 = t[0], i = 0; s0 < t[n-1]; s0 += step){ let a = i; while (i < n && t[i] < s0 + step) i++; const b = Math.max(a, i - 1); if (b <= a) continue;
+    let hs = 0, hn = 0; for (let k = a; k <= b; k++) if (okH && hr[k]){ hs += hr[k]; hn++; }
+    prof.push([Math.round((s0 - t[0]) / 60), hn ? Math.round(hs / hn) : null, pace((d[b] - d[a]) / Math.max(1, t[b] - t[a])), okA ? Math.round(alt[b]) : null]); }
+  /* temps sous 145 / 150, FC max, cadence moyenne, blocage capteur : FC >= 165 a +-5 de la cadence
+     a allure lente (> 6:15/km), cumule ; l'appli n'alerte qu'au-dela de 2 min (cas du capteur poignet le 04/11/2026) */
+  let tt = 0, u145 = 0, u150 = 0, hmax = 0, cs = 0, cn = 0, lock = 0;
+  for (let i = 1; i < n; i++){ const dt = t[i] - t[i-1]; if (!(dt > 0 && dt <= 10)) continue; const c = C(i); if (c){ cs += c; cn++; }
+    if (!okH || !hr[i]) continue; tt += dt; if (hr[i] <= 145) u145 += dt; if (hr[i] <= 150) u150 += dt; if (hr[i] > hmax) hmax = hr[i];
+    if (c && hr[i] >= 165 && Math.abs(hr[i] - c) <= 5 && d[i] - d[i-1] < 2.67 * dt) lock += dt; }
+  /* derive */
+  let drift = null;
+  const s10 = t[0] + 600, a = t.findIndex(x => x >= s10), p1 = pauses.find(p => p.at > s10), endT = p1 ? p1.at : t[n-1];
+  if (a > 0 && okH){ let b = n - 1; while (b > a && t[b] > endT) b--;
+    const len = t[b] - t[a];
+    if (len >= 1200){ const mid = t[a] + len / 2; let m = a; while (t[m] < mid) m++;
+      const half = (x, y) => { let hs = 0, hn = 0, up = 0; for (let k = x + 1; k <= y; k++){ if (hr[k]){ hs += hr[k]; hn++; } if (okA){ const da = alt[k] - alt[k-1]; if (da > 0 && da < 5) up += da; } }
+        const v = (d[y] - d[x]) / (t[y] - t[x]), h = hs / hn; return {p: pace(v), hr: Math.round(h * 10) / 10, ef: v * 60 / h, up: okA ? Math.round(up) : null}; };
+      const h1 = half(a, m), h2 = half(m, b);
+      drift = {from: Math.round((t[a] - t[0]) / 60), to: Math.round((t[b] - t[0]) / 60), h1, h2, pct: Math.round((h1.ef / h2.ef - 1) * 1000) / 10}; }
+    else drift = {short: Math.round(len / 60)}; }
+  return {laps, prof, step: step / 60, pauses: pauses.slice(0, 8).map(p => ({min: Math.round((p.at - t[0]) / 60), s: Math.round(p.s), km: Math.round(p.km / 100) / 10})),
+    u145: tt ? Math.round(u145 / tt * 100) : null, u150: tt ? Math.round(u150 / tt * 100) : null, hmax: hmax || null, cad: cn ? Math.round(cs / cn) : null, lock: Math.round(lock), drift};
 }
 async function pool(items, n, fn){ const out = new Array(items.length); let k = 0;
   await Promise.all(Array.from({length: Math.min(n, items.length)}, async () => { while (k < items.length){ const i = k++; out[i] = await fn(items[i]); } }));
@@ -91,16 +140,18 @@ export default async (req) => {
         const list = (await iv(`${ath()}/activities?${q}`)) || [];
         /* L'API renvoie un objet vide pour les activites venues de Strava : on ne garde que les sorties lisibles */
         const runs = list.filter(a => a && a.id && /run/i.test(a.type || '') && a.distance > 0).slice(0, 20);
-        const acts = await Promise.all(runs.map(async a => {
-          let zones = null;
-          if (a.has_heartrate !== false){ try {
-            const st = await iv(`/activity/${encodeURIComponent(a.id)}/streams.json?types=time,heartrate`);
+        const acts = await pool(runs, 6, async a => {
+          let zones = null, det = null;
+          try {
+            const st = await iv(`/activity/${encodeURIComponent(a.id)}/streams.json?types=time,heartrate,distance,fixed_altitude,altitude,cadence`);
             const g = k => ((st || []).find(s => s.type === k) || {}).data || [];
-            const t = g('time'), hr = g('heartrate'); if (t.length && t.length === hr.length) zones = zonesOf(t, hr);
-          } catch { zones = null; } }
+            const t = g('time'), hr = g('heartrate'), alt = g('fixed_altitude').length ? g('fixed_altitude') : g('altitude');
+            if (t.length && t.length === hr.length) zones = zonesOf(t, hr);
+            try { det = detOf(t, hr, g('distance'), alt, g('cadence')); } catch { det = null; }
+          } catch { zones = null; }
           return { id: a.id, name: a.name, date: (a.start_date_local || '').slice(0, 10), km: Math.round(a.distance / 10) / 100, dur: a.moving_time || a.elapsed_time || null,
-                   hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, zones, device: a.device_name || null };
-        }));
+                   hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, zones, det, device: a.device_name || null };
+        });
         return json(200, { ok: true, acts, skipped: list.length - runs.length });
       }
       case 'history': {
