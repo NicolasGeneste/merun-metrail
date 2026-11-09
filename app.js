@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.17.0';
+const APP_VERSION = 'v4.17.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1760,6 +1760,7 @@ async function ivPull(silent){
     if (dup){ if (!dup.iv) dup.iv = a.id; if (!dup.zones && a.zones){ dup.zones = a.zones; upd++; } if (!dup.hr && a.hr){ dup.hr = a.hr; upd++; } if (a.det && !dup.det){ dup.det = a.det; upd++; } continue; }
     S.acts.push({date:a.date, km:a.km, dur:a.dur, hr:a.hr, zones:a.zones, det:a.det||null, iv:a.id, src:'intervals', name:a.name||null}); n++;
   }
+  const ra = d.acts || []; st.detDiag = {at:new Date().toISOString(), n:ra.length, det:ra.filter(a=>a.det).length, sk:(ra.find(a=>a.sk)||{}).sk||null};
   st.lastPull = t; save();
   const waiting = pending().filter(s => S.acts.some(a => !a.code && Math.abs(daysTo(a.date)-daysTo(s.date))<=1)).length;
   if (!silent || n) toast(n ? `✓ ${n} sortie(s) récupérée(s)${waiting?' · valide ta séance avec ton ressenti':''}` : upd ? '✓ Détails des sorties complétés' : 'Aucune nouvelle sortie');
@@ -2334,7 +2335,7 @@ function bilanText(w){
   if (zt) L.push(`Temps sous 150 bpm (SV1) sur la semaine : ${Math.round(z12t/zt*100)} % (cible du plan : environ 80 %)`);
   const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
-  const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)`);
+  const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.det}/${g.n} sortie(s) avec détail${g.sk?', flux : '+g.sk:''}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
   L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
   L.push(''); L.push('Ma question : ');
   return L.join('\n');

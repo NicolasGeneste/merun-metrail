@@ -141,16 +141,18 @@ export default async (req) => {
         /* L'API renvoie un objet vide pour les activites venues de Strava : on ne garde que les sorties lisibles */
         const runs = list.filter(a => a && a.id && /run/i.test(a.type || '') && a.distance > 0).slice(0, 20);
         const acts = await pool(runs, 6, async a => {
-          let zones = null, det = null;
+          let zones = null, det = null, st0 = null;
           try {
-            const st = await iv(`/activity/${encodeURIComponent(a.id)}/streams.json?types=time,heartrate,distance,fixed_altitude,altitude,cadence`);
+            /* sans filtre de types : noms des flux d'altitude et de cadence non documentes (forum Intervals.icu : sans types, tous les flux) */
+            const st = await iv(`/activity/${encodeURIComponent(a.id)}/streams.json`);
+            st0 = (st || []).map(x => x.type).join(',');
             const g = k => ((st || []).find(s => s.type === k) || {}).data || [];
             const t = g('time'), hr = g('heartrate'), alt = g('fixed_altitude').length ? g('fixed_altitude') : g('altitude');
             if (t.length && t.length === hr.length) zones = zonesOf(t, hr);
             try { det = detOf(t, hr, g('distance'), alt, g('cadence')); } catch { det = null; }
-          } catch { zones = null; }
+          } catch (e) { zones = null; st0 = 'erreur ' + (e.status || e.message); }
           return { id: a.id, name: a.name, date: (a.start_date_local || '').slice(0, 10), km: Math.round(a.distance / 10) / 100, dur: a.moving_time || a.elapsed_time || null,
-                   hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, zones, det, device: a.device_name || null };
+                   hr: a.average_heartrate ? Math.round(a.average_heartrate) : null, zones, det, sk: st0, device: a.device_name || null };
         });
         return json(200, { ok: true, acts, skipped: list.length - runs.length });
       }
