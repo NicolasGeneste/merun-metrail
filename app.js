@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.17.2';
+const APP_VERSION = 'v4.17.3';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1752,7 +1752,8 @@ async function ivPull(silent){
   /* v4.17 : relit les sorties des 14 derniers jours qui n'ont pas encore leur detail (bilan) */
   const need = S.acts.filter(a => a.iv && !a.det && a.date >= iso(new Date(Date.now()-14*864e5))).map(a => a.date).sort()[0];
   if (need && need < from) from = need;
-  const d = await ivCall('activities', {oldest:from, newest:t});
+  let d; try { d = await ivCall('activities', {oldest:from, newest:t}); }
+  catch(e){ st.detDiag = {at:new Date().toISOString(), err:e.message}; save(); throw e; }
   let n = 0, upd = 0;
   for (const a of d.acts || []){
     if (!a.date || !(a.km>0)) continue;
@@ -2335,7 +2336,7 @@ function bilanText(w){
   if (zt) L.push(`Temps sous 150 bpm (SV1) sur la semaine : ${Math.round(z12t/zt*100)} % (cible du plan : environ 80 %)`);
   const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
-  const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.det}/${g.n} sortie(s) avec détail${g.sk?', flux : '+g.sk:''}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
+  const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.err?'échec ('+g.err+')':g.det+'/'+g.n+' sortie(s) avec détail'+(g.sk?', flux : '+g.sk:'')}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
   L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
   L.push(''); L.push('Ma question : ');
   return L.join('\n');
