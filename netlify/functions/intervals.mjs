@@ -72,7 +72,8 @@ function detOf(t, hr, d, alt, cad){
   const T = t[n-1] - t[0], step = Math.max(1, Math.ceil(T / 60 / 50)) * 60, prof = [];
   for (let s0 = t[0], i = 0; s0 < t[n-1]; s0 += step){ let a = i; while (i < n && t[i] < s0 + step) i++; const b = Math.max(a, i - 1); if (b <= a) continue;
     let hs = 0, hn = 0; for (let k = a; k <= b; k++) if (okH && hr[k]){ hs += hr[k]; hn++; }
-    prof.push([Math.round((s0 - t[0]) / 60), hn ? Math.round(hs / hn) : null, pace((d[b] - d[a]) / Math.max(1, t[b] - t[a])), okA ? Math.round(alt[b]) : null]); }
+    let ab = null; if (okA) for (let k = b; k >= a; k--) if (alt[k] > 0){ ab = Math.round(alt[k]); break; }
+    prof.push([Math.round((s0 - t[0]) / 60), hn ? Math.round(hs / hn) : null, pace((d[b] - d[a]) / Math.max(1, t[b] - t[a])), ab]); }
   /* temps sous 145 / 150, FC max, cadence moyenne, blocage capteur : FC >= 165 a +-5 de la cadence
      a allure lente (> 6:15/km), cumule ; l'appli n'alerte qu'au-dela de 2 min (cas du capteur poignet le 04/11/2026) */
   let tt = 0, u145 = 0, u150 = 0, hmax = 0, cs = 0, cn = 0, lock = 0;
