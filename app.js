@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.17.3';
+const APP_VERSION = 'v4.17.4';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1564,7 +1564,7 @@ function sessHex(s, xs, size, hero){ xs = xs || sxState(s); let [f,stc,tc] = HX_
   if (hero){ ic = xs==='fut' ? C.text : xs==='miss' ? C.pink : xs==='part' ? C.teal : f; stc = xs==='fut' ? '#7d8696' : ic; f = C.bg; }
   return `<span style="position:relative;flex:none;width:${size}px;height:${size}px;display:inline-grid;place-items:center" aria-label="${SX_LABEL[xs]}">
     <svg viewBox="0 0 100 100" width="${size}" height="${size}" style="position:absolute;inset:0;overflow:visible"><polygon points="${ptsStr(hexPts(c,c,r))}" fill="${f}" stroke="${key?C.amber:stc}" stroke-width="${key?6:3}"${!hero&&(xs==='done'||xs==='cur')?` style="filter:drop-shadow(0 0 6px ${f})"`:''}/></svg>
-    <span style="position:relative;color:${ic};display:grid">${ico(xs==='done'?'thumb':sxIco(s), Math.round(size*.4))}</span></span>`; }
+    <span style="position:relative;color:${ic};display:grid">${ico(sxIco(s), Math.round(size*.4))}</span></span>`; }
 /* Defis : objectifs derives du plan lui-meme (km et PPG planifies), pas de cibles arbitraires */
 function challenges(){
   /* v4.6.1 : uniquement le plan officiel (pre-saison exclue). Si le mois en cours compte moins de 3 seances officielles
