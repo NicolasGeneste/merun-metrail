@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.17.5';
+const APP_VERSION = 'v4.18.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1885,7 +1885,31 @@ const BASE_W = PLAN.map(w => ({sessions: w.sessions.slice()}));
 const r1 = x => Math.round(x*10)/10;
 const sumKm = ss => ss.reduce((a,s)=>a+s.km, 0);
 const baseKmOf = w => r1(sumKm(BASE_W[w.num-1].sessions));
-const efKmPerMin = bloc => { const r = paceRange('EF', bloc, S.vc); return 60/((r[0]+r[1])/2); };
+/* v4.18 : allure EF reelle = mediane des sorties EF validees des 5 dernieres semaines restees a >= 70 % sous 150 bpm
+   (3 sorties minimum). Sert a estimer les km prevus a partir de la semaine en cours : le plan est ecrit en duree. */
+let EF_REAL = null;
+function efRealCalc(){
+  const lim = iso(new Date(Date.now()-35*864e5)), base = new Map(BASE_W.flatMap(w => w.sessions).map(x => [x.code, x])), ps = [];
+  for (const a of S.acts){ if (!a.code || !a.km || a.km < 2 || !a.dur || a.date < lim) continue;
+    const ss = base.get(a.code), ef = a.code.startsWith('X_') || (ss && ['EF','EFD'].includes(mainZone(ss)));
+    const u = a.det && a.det.u150 != null ? a.det.u150 : null;
+    if (ef && u != null && u >= 70) ps.push(a.dur / a.km); }
+  if (ps.length < 3) return null;
+  ps.sort((x,y) => x-y); const m = ps.length >> 1, p = ps.length % 2 ? ps[m] : (ps[m-1]+ps[m])/2;
+  return {p: Math.min(480, Math.max(330, Math.round(p))), n: ps.length};
+}
+function estKm(s){
+  if (!EF_REAL || s.kind === 'race' || !s.steps) return null;
+  let km = 0;
+  for (const g of flatSteps(s.steps, s.bloc, S.vc)){
+    if (g.d){ km += g.d/1000; continue; }
+    if (!g.sec) continue; if (g.z === 'OPEN') return null;
+    let pc = ['EF','EFD'].includes(g.z) ? EF_REAL.p : g.z === 'RECUP' ? EF_REAL.p + 30 : null;
+    if (!pc){ const r = paceRange(g.z, s.bloc, S.vc); if (!r) return null; pc = (r[0]+r[1])/2; }
+    km += g.sec / pc; }
+  return Math.round(km*2)/2;
+}
+const efKmPerMin = bloc => { if (EF_REAL) return 60/EF_REAL.p; const r = paceRange('EF', bloc, S.vc); return 60/((r[0]+r[1])/2); };
 const padW = n => String(n).padStart(2,'0');
 const wkEditable = s => s.date >= todayIso() && !isDone(s);
 const wkOpen = w => !w.pre && weekEnd(w) >= todayIso();
@@ -1966,6 +1990,10 @@ function wkPreview(w, c){
 /* Applique toutes les semaines dans l'ordre (le plafond depend de la semaine precedente) */
 function applyWeekPrefs(){
   S.wk = S.wk || {};
+  /* v4.18 : km prevus recales sur l'allure EF reelle, de la semaine en cours a la fin du plan */
+  EF_REAL = efRealCalc(); const t0 = todayIso();
+  BASE_W.forEach((bw, i) => { const w = PLAN[i]; if (w.pre || weekEnd(w) < t0) return;
+    bw.sessions = bw.sessions.map(x => { const k0 = x.km0 ?? x.km, k = estKm({...x, km:k0}); return {...x, km0:k0, km: k ?? k0}; }); });
   const mv = S.mv || {};
   PLAN.forEach((w,i) => { w.sessions = w.pre ? BASE_W[i].sessions.slice() : wkBuild(w, S.wk[w.num]);
     /* v4.10 : seances deplacees a la main (S.mv : code -> nouvelle date, dans la meme semaine) */
@@ -2291,8 +2319,8 @@ function detLines(a, s){
   const P = x => x ? fmtPace(x) : '-', L = [], stable = !s || ['EF','EFD','RECUP','OPEN'].includes(mainZone(s));
   if (s) L.push(`  Consigne du plan : ${ivDescription(s).split('\n').map(x=>x.replace(/^- /,'').trim()).filter(Boolean).join(' / ')}`);
   L.push(`  FC : ${D.u145!=null?D.u145+' % du temps ≤ 145, ':''}${D.u150!=null?D.u150+' % ≤ 150, ':''}max ${D.hmax||'-'}${D.cad?' · cadence moy '+D.cad:''}`);
-  L.push('  Tours : ' + D.laps.map((l,i) => `km${i+1}${l.m<950?' ('+l.m+' m)':''} ${P(l.p)} FC ${l.hr||'-'}/${l.hm||'-'}${l.up!=null?' D+'+l.up:''}${l.cad?' c'+l.cad:''}`).join(' | '));
-  L.push(`  Profil par ${D.step} min (min FC/allure/alt) : ` + D.prof.map(p => `${p[0]}' ${p[1]||'-'}/${P(p[2])}${p[3]!=null?'/'+p[3]:''}`).join(' '));
+  if (D.laps && D.laps.length) L.push('  Tours : ' + D.laps.map((l,i) => `km${i+1}${l.m<950?' ('+l.m+' m)':''} ${P(l.p)} FC ${l.hr||'-'}/${l.hm||'-'}${l.up!=null?' D+'+l.up:''}${l.cad?' c'+l.cad:''}`).join(' | '));
+  if (D.prof && D.prof.length) L.push(`  Profil par ${D.step} min (min FC/allure/alt) : ` + D.prof.map(p => `${p[0]}' ${p[1]||'-'}/${P(p[2])}${p[3]!=null?'/'+p[3]:''}`).join(' '));
   if (D.pauses && D.pauses.length) L.push('  Pauses : ' + D.pauses.map(p => `${p.min}' (${p.km} km) ${p.s} s`).join(', '));
   const dr = D.drift;
   if (dr && dr.short!=null) L.push(`  Dérive : non calculée (bloc continu de ${dr.short} min après l'échauffement, 20 min minimum)`);
@@ -2337,6 +2365,7 @@ function bilanText(w){
   const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
   const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.err?'échec ('+g.err+')':g.det+'/'+g.n+' sortie(s) avec détail'+(g.sk?', flux : '+g.sk:'')}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
+  L.push(EF_REAL ? `Allure EF réelle : ${fmtPace(EF_REAL.p)}/km (médiane de ${EF_REAL.n} sorties EF sur 5 semaines), utilisée pour les km prévus` : 'Allure EF réelle : pas assez de sorties EF détaillées (3 minimum), km prévus estimés sur la VC');
   L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
   /* v4.17.5 : la question se saisit dans un champ a part (le bilan est en lecture seule) */
   return L.join('\n');
