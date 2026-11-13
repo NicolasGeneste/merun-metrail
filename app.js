@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.17.4';
+const APP_VERSION = 'v4.17.5';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2338,19 +2338,22 @@ function bilanText(w){
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
   const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.err?'échec ('+g.err+')':g.det+'/'+g.n+' sortie(s) avec détail'+(g.sk?', flux : '+g.sk:'')}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
   L.push(`Réglages : VC ${fmtN(S.vc)} km/h · FC max ${S.fcmax} · objectif ${S.goal.name} en ${fmtHM(S.goal.target)} · appli ${APP_VERSION}`);
-  L.push(''); L.push('Ma question : ');
+  /* v4.17.5 : la question se saisit dans un champ a part (le bilan est en lecture seule) */
   return L.join('\n');
 }
 window.bilanOpen = num => openLayer('bilan', {week:num});
 window.bilanCopy = async () => { const ta = $('#bilanTxt'); if (!ta) return;
-  try { await navigator.clipboard.writeText(ta.value); toast('✓ Bilan copié : colle-le dans ta conversation avec Claude'); }
-  catch(e){ ta.focus(); ta.select(); try { document.execCommand('copy'); toast('✓ Bilan copié'); } catch(_){ toast('Sélectionne le texte et copie-le'); } } };
+  const q = (V.bilanQ || '').trim(), full = ta.value.replace(/\s+$/,'') + '\n\nMa question : ' + (q || '');
+  try { await navigator.clipboard.writeText(full); toast('✓ Bilan copié : colle-le dans ta conversation avec Claude'); }
+  catch(e){ ta.value = full; ta.focus(); ta.select(); try { document.execCommand('copy'); toast('✓ Bilan copié'); } catch(_){ toast('Sélectionne le texte et copie-le'); } } };
 function Bilan(l){
   const w = PLAN.find(x => x.num===l.week) || curWeek(), txt = bilanText(w);
   return `<div class="pad">${head('Mon bilan', wLab(w)+' · à coller dans ta conversation avec Claude')}
     <textarea id="bilanTxt" readonly style="width:100%;min-height:52vh;background:var(--surface);color:var(--text);border:0;border-radius:18px;padding:14px;font:13px/1.45 Inter,system-ui,sans-serif;resize:vertical">${esc(txt)}</textarea>
-    <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan</button>
-    <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié. Ajoute ta question à la fin, puis colle-le dans le projet « Entraînement » sur Claude.</p></div>`;
+    <div class="card"><div class="mono muted">Ma question pour Claude</div>
+      <textarea id="bilanQ" rows="3" placeholder="Ex. : comment as-tu trouvé ma VMA de mercredi ?" oninput="V.bilanQ=this.value" style="width:100%;margin-top:8px;background:var(--surface-2);color:var(--text);border:0;border-radius:12px;padding:11px 13px;font:14px/1.4 Inter,system-ui,sans-serif;resize:vertical">${esc(V.bilanQ||'')}</textarea></div>
+    <button class="pill" style="background:${C.teal};color:${C.bg};padding:16px" onclick="bilanCopy()">Copier le bilan et ma question</button>
+    <p class="muted" style="font-size:11.5px">Le texte n'est envoyé nulle part : il est seulement copié, avec ta question à la fin. Colle-le ensuite dans le projet « Entraînement » sur Claude.</p></div>`;
 }
 Object.assign(LAYER, {cycles:Cycles, params:Params, perfs:Perfs, share:Share, acts:Acts, methods:Methods, myvid:MyVid, montre:Montre, wkset:WkSet, hist:Hist, bilan:Bilan, move:Move, lib:Lib, xsadd:XsAdd});
 Object.assign(window,{openLayer,closeLayer,closeAll,render,go,parseDur,curWeek,download,toast});
