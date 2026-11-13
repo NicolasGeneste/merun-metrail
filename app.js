@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.18.0';
+const APP_VERSION = 'v4.18.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1191,9 +1191,10 @@ function Goal(){
     <div class="card"><div style="font-weight:800">Objectif de temps</div>
       <div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:12px">
         <div><div class="muted" style="font-size:11px">Départ</div><div class="anton" style="font-size:22px">${fmtHM(g.startSec)}</div></div>
-        <div style="text-align:center"><div class="mono muted" style="font-size:10px">Temps actuel</div><div class="anton" style="font-size:44px;line-height:1;color:${cp?C.teal:C.muted}">${cp?fmtHM(cp.proj):'?'}</div>
-          ${cp?`<span class="badge" style="background:${cp.proj<=g.target?C.teal:C.surface2};color:${cp.proj<=g.target?C.bg:C.text}">${cp.proj<=g.target?'Objectif atteint':'Encore '+Math.ceil((cp.proj-g.target)/60)+' min'}</span>`:''}</div>
+        <div style="text-align:center"><div class="mono muted" style="font-size:10px">Temps actuel</div><div class="anton" style="font-size:44px;line-height:1;color:${cp?C.teal:C.muted}">${cp?fmtHM(cp.proj)+`<span style="font-size:22px">${String(Math.round(cp.proj)%60).padStart(2,'0')}</span>`:'?'}</div>
+          ${cp?(() => { const d = Math.round(cp.proj - g.target); return `<span class="badge" style="background:${d<=0?C.teal:C.surface2};color:${d<=0?C.bg:C.text}">${d<=0?'Objectif atteint':'Encore '+(d<60?d+' s':Math.floor(d/60)+' min '+String(d%60).padStart(2,'0'))}</span>`; })():''}</div>
         <div style="text-align:right"><div class="muted" style="font-size:11px">Cible</div><div class="anton" style="font-size:22px">${fmtHM(g.target)}</div></div></div>
+      <div class="muted" style="font-size:11px;display:flex;justify-content:space-between;margin-top:6px"><span>ton dernier marathon</span><span>projection actuelle</span><span>ton objectif</span></div>
       <p class="muted" style="font-size:12px;margin-top:12px">${cp?`Projection Riegel depuis ton ${esc(cp.l)} en ${fmtHMS(cp.sec)} (${shortDate(cp.date)}).`:"Aucun chrono depuis le début du plan. Valide ton test 5 km avec ton chrono pour obtenir ta projection."} Départ : ton marathon du 26 avr. 2026.</p>
       <button class="pill" style="background:${C.surface2};width:100%;margin-top:12px;padding:12px" onclick="openLayer('perfs')">Mes chronos de référence</button></div>
 
@@ -1241,6 +1242,8 @@ function volChart(){
     ${done.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" fill="${C.orange}"/>`).join('')}</svg>`;
 }
 /* Arc des 4 blocs, proportionnel au nombre de semaines */
+/* v4.18.1 : chaque bloc de l'arc est tactile et ouvre le cycle correspondant */
+window.cycPick = k => { V.cyc = k; V.openW = null; if (V.layers.some(l => l.k === 'cycles')) render(); else openLayer('cycles'); };
 function cycArc(sel, width=300){
   const keys = Object.keys(BLOC), n = keys.map(k=>OFF.filter(w=>w.bloc===k).length), tot = n.reduce((a,b)=>a+b,0);
   const cur = curWeek().bloc, ci = keys.indexOf(cur), cx=150, cy=140, R=118, r=78, gapA=.035;
@@ -1249,8 +1252,9 @@ function cycArc(sel, width=300){
   keys.forEach((k,i) => { const span = Math.PI*n[i]/tot; const a1 = a0 - gapA/2, a2 = a0 - span + gapA/2;
     const [x1,y1]=pt(R,a1),[x2,y2]=pt(R,a2),[x3,y3]=pt(r,a2),[x4,y4]=pt(r,a1);
     const col = BLOC[k].c, st = i<ci ? `fill="${col}" fill-opacity=".5"` : i===ci ? `fill="${col}"` : `fill="none" stroke="${col}" stroke-width="2"`;
-    out += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L${x3.toFixed(1)} ${y3.toFixed(1)} A${r} ${r} 0 0 0 ${x4.toFixed(1)} ${y4.toFixed(1)}Z" ${st}${k===sel?` stroke="${C.text}" stroke-width="3"`:''}/>`;
-    const [lx,ly] = pt((R+r)/2, a0 - span/2); out += `<text x="${lx.toFixed(1)}" y="${(ly+6).toFixed(1)}" text-anchor="middle" style="font:400 18px Anton" fill="${i<=ci?C.bg:col}">${k}</text>`;
+    const [lx,ly] = pt((R+r)/2, a0 - span/2);
+    out += `<g style="cursor:pointer" role="button" tabindex="0" aria-label="Cycle ${k} : ${esc(BLOC[k].n)}" onclick="event.stopPropagation();cycPick('${k}')"><path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L${x3.toFixed(1)} ${y3.toFixed(1)} A${r} ${r} 0 0 0 ${x4.toFixed(1)} ${y4.toFixed(1)}Z" ${st}${k===sel?` stroke="${C.text}" stroke-width="3"`:''}/>
+      <text x="${lx.toFixed(1)}" y="${(ly+6).toFixed(1)}" text-anchor="middle" style="font:400 18px Anton;pointer-events:none" fill="${i<=ci?C.bg:col}">${k}</text></g>`;
     a0 -= span; });
   return `<svg viewBox="0 0 300 150" style="width:100%;max-width:${width}px;display:block;margin:10px auto 0" role="img" aria-label="Cycles : bloc ${cur} en cours">${out}</svg>`;
 }
@@ -1272,7 +1276,7 @@ function Cycles(){
         <div><div class="mono muted" style="font-size:10px">Distance</div><div><span class="anton" style="font-size:24px">${fmtN(dKm)}</span><span class="muted"> /${fmtN(pKm)} km</span></div></div></div></div>
     ${ws.map(w=>{ const open = V.openW===w.num; return `<div class="card" style="padding:0">
       <button class="row" style="width:100%;justify-content:space-between;padding:16px" onclick="V.openW=${open?'null':w.num};render()" aria-expanded="${open}">
-        <span style="text-align:left"><span style="font-weight:800;display:block">Semaine ${w.num}</span><span class="muted" style="font-size:12px">${esc(w.title)} · ${w.km} km</span></span>${ico(open?'back':'next',18)}</button>
+        <span style="text-align:left"><span style="font-weight:800;display:block">Semaine ${wNo(w)}</span><span class="muted" style="font-size:12px">${esc(String(w.title).replace(/^Semaine\s*\d+\s*:\s*/i,''))} · ${fmtN(w.km)} km</span></span>${ico(open?'back':'next',18)}</button>
       ${open?`<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:2px">${w.num > curWeek().num + 1 && w.sessions.length ? `<p class="muted" style="font-size:12px;margin:0 0 6px">Provisoire : le détail s'ouvre la semaine d'avant.</p>`+w.sessions.map(s=>`<div class="field" style="width:100%"><span style="font-weight:700">${s.kind==='foot'?'Footing':KIND[s.kind].l}${isKey(s)?' · clé':''}</span><span class="muted" style="font-size:12px">${DOW[s.day]} ${shortDate(s.date)}</span></div>`).join('') : w.sessions.length?w.sessions.map(s=>`<button class="field" style="width:100%;text-align:left" onclick="openS('${s.code}')">
         <span style="min-width:0"><span style="font-weight:700;display:block">${isDone(s)?'✓ ':''}${esc(s.title)}</span><span class="muted" style="font-size:12px">${DOW[s.day]} ${shortDate(s.date)} · ${fmtDur(sessDur(s))} · ${fmtN(kmOf(s))} km</span></span>${bolts(diffOf(s))}</button>`).join(''):'<p class="muted">Repos.</p>'}</div>`:''}</div>`; }).join('')}
   </div>`;
