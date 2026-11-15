@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.18.1';
+const APP_VERSION = 'v4.18.2';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1687,7 +1687,7 @@ const ivHrMode = s => flatSteps(stepsOf(s), s.bloc, S.vc).every(x => HR_ZONES.in
 const ivHrCap = () => `55-${Math.floor(145/S.fcmax*100)}% HR`;
 function ivLine(st, bloc, hr, inRep){
   const amount = st.t ? ivDur(st.t) : st.d ? ivDist(st.d) : null;
-  const cue = (IV_CUE[st.k] || ZLABEL[st.z] || 'Effort').replace(/\d/g,'').trim();
+  const cue = (IV_CUE[st.k] || ZLABEL[st.z] || 'Effort').replace('10 km','dix km').replace(/\d/g,'').trim();
   if (!amount) return (st.n||cue).replace(/\b\d+x\b/gi,'');                 // etape libre sans duree : simple titre, pas d'etape
   const tg = hr ? (['EF','EFD','RECUP'].includes(st.z) && !inRep ? ivHrCap() : '') : ivTarget(st.z, bloc);   // recup entre lignes : sans cible (FC encore haute)
   return `- ${cue} ${amount} ${tg}`.trim();
@@ -2330,7 +2330,8 @@ function detLines(a, s){
   if (dr && dr.short!=null) L.push(`  Dérive : non calculée (bloc continu de ${dr.short} min après l'échauffement, 20 min minimum)`);
   else if (dr){ const prog = dr.h1.p && dr.h2.p && dr.h2.p < dr.h1.p*0.95;
     L.push(`  Dérive Pa:Hr brute (${dr.from}' → ${dr.to}') : ${P(dr.h1.p)} FC ${dr.h1.hr} D+${dr.h1.up??'-'} → ${P(dr.h2.p)} FC ${dr.h2.hr} D+${dr.h2.up??'-'} = ${dr.pct>0?'+':''}${dr.pct} %${!stable?' (séance non stable : non conclusif)':prog?' (2e moitié plus rapide : progressif, non conclusif)':''} · sans correction de pente`); }
-  if (D.lock >= 120) L.push(`  ⚠ FC calée sur la cadence pendant ${Math.round(D.lock/60)} min à allure lente : capteur poignet probablement faux sur ces passages`);
+  /* v4.18.2 : pas d'alerte capteur sur une seance de qualite (FC haute en recuperation = normal) */
+  if (D.lock >= 120 && stable) L.push(`  ⚠ FC calée sur la cadence pendant ${Math.round(D.lock/60)} min à allure lente : capteur poignet probablement faux sur ces passages`);
   return L;
 }
 function bilanText(w){
