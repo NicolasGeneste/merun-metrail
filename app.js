@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.18.2';
+const APP_VERSION = 'v4.19.0';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -470,6 +470,7 @@ function Home(){
       <span class="dot" style="background:${C.orange}">${ico('check',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.orange};display:block">Retour attendu</span>
       <span style="font-weight:700;display:block">${esc(pend[pend.length-1].title)} · ${DOW[pend[pend.length-1].day]} ${shortDate(pend[pend.length-1].date)}</span><span class="muted" style="font-size:12.5px">Comment ça s'est passé ? Ton retour ajuste le plan.</span></span>${ico('next')}</button>` : ''}
     ${adj ? adjBanner(adj) : ''}
+    ${expressCard()}
     ${new Date().getHours()>=17 ? nightCard(true) : ''}
     ${(() => { const nw = PLAN[curWeek().num], dw = new Date().getDay(); return nw && wkOpen(nw) && (dw===6||dw===0) && !S.wk[nw.num] ? `<button class="card row" style="text-align:left;border:2px solid ${C.teal}" onclick="wkOpenSet(${nw.num})"><span class="kdot" style="background:${C.teal}">${ico('edit',20)}</span><span style="flex:1;min-width:0"><span class="mono" style="color:${C.teal};display:block">Semaine prochaine</span><span style="font-weight:700;display:block">${wLab(nw)} · ${fmtN(nw.km)} km prévus</span><span class="muted" style="font-size:12.5px">Une sortie en plus ou en moins ? Plus ou moins d'intensité ?</span></span>${ico('next')}</button>` : ''; })()}
     <button onclick="openS('${n.code}')" style="background:${k.c};color:${C.bg};border-radius:28px;padding:20px;display:flex;flex-direction:column;gap:10px;text-align:left">
@@ -506,7 +507,7 @@ function Plan(){
   const items = days.map(dd => {
     const ss = w.sessions.filter(x=>x.day===dd); const p = w.ppg.find(x=>x.day===dd);
     if (ss.length) return ss.map(s => { idx++; return sessCard(s, idx, w.sessions.length); }).join('');
-    if (p){ const ok=S.ppgDone.includes(p.date); return `<button class="ppgline" onclick="V.routine='${p.routine||'P1'}';go('ppg')"><span style="color:${ok?C.pink:C.muted}">${ok?'✓':'◇'}</span>${dd} ${shortDate(p.date)} · ${esc(p.name)}</button>`; }
+    if (p){ const pi = w.ppg.indexOf(p), ok = ppgWeekDone(w) > pi; return `<button class="ppgline" onclick="V.routine='${p.routine||'P1'}';go('ppg')"><span style="color:${ok?C.pink:C.muted}">${ok?'✓':'◇'}</span>${dd} ${shortDate(p.date)} · ${esc(p.name)}</button>`; }
     return '';
   }).join('');
   const st = (l, v, sub) => `<div><div class="muted" style="font-size:11.5px">${l}</div><div class="anton" style="font-size:26px;line-height:1.1">${v}</div><div class="muted" style="font-size:11px">${sub}</div></div>`;
@@ -790,6 +791,13 @@ window.exportAll = async () => { try{ await ensureZip(); const z=new JSZip();
 /* P1 et P2 : onglet PPG du classeur v4 (contenu, series, repetitions). C : routine "haut du corps" de la v2.8.
    Les durees d'effort / de recuperation sont indicatives (le classeur donne des series x repetitions). */
 const ROUT = {
+  /* v4.19 : PPG express apres les EF (22/11/2026) : 10 min, elastique + espalier ; compte comme une PPG de la semaine */
+  P0:{n:'PPG express',sub:'Après une EF · ~10 min · élastique + espalier',ex:[
+    ["Mollets lents à l'espalier, talons dans le vide",3,'12',45,20,"Avant du pied sur la barre basse. Monte en 1 s, descends en 3 s sous la barre. Sur une jambe quand c'est facile."],
+    ['Marche latérale, élastique au-dessus des genoux',2,'12 pas / côté',40,20,'Demi-squat, pieds parallèles, genoux vers l\'extérieur. Le buste ne balance pas.'],
+    ['Pont fessier sur une jambe',2,'10 / jambe',50,20,'Pousse dans le talon, bassin horizontal, 1 s en haut.'],
+    ["Relevés de genoux suspendu à l'espalier",2,'8-10',35,30,'Sans balancer : monte les genoux lentement, redescends en contrôlant.'],
+    ['Planche latérale',2,'30 s / côté',60,20,'Corps aligné, hanche haute.']]},
   P1:{n:'PPG 1 · Force',sub:'Lundi · 35-40 min',ex:[
     ['Échauffement : vélo ou corde + montées de genoux, talons-fesses',1,'5 min',300,0,'Ne jamais attaquer à froid.'],
     ['Squat (barre, haltères ou poids du corps lesté)',3,'8-10',30,90,'Cuisses parallèles. Les 2 dernières reps doivent être dures.'],
@@ -1091,6 +1099,15 @@ function nightWeek(){ const t=new Date(), ti=nightIdx(t), mon=new Date(t); mon.s
         <span style="width:20px;color:${ok?C.teal:C.muted}">${ok?'✓':i<ti?'·':'◇'}</span><span style="width:78px;font-size:12.5px;${cur?'font-weight:800':''}" class="${cur?'':'muted'}">${NIGHT_D[i]}</span>
         <span style="flex:1;font-size:13px;font-weight:${cur?800:600}">${esc(ROUT[k].n)}</span><span class="muted" style="font-size:12px">${routMin(k)} min</span></button>`; }).join('')}</div>
     <p class="muted" style="font-size:11.5px;margin:8px 0 0">Matériel : élastique le lundi et le vendredi, rouleau le week-end. Toute routine de mobilité faite le jour compte.</p></div>`; }
+/* v4.19 : PPG de la semaine = nombre de jours de la semaine avec une PPG terminee (n'importe laquelle, express comprise) */
+const ppgWeekDone = w => [...new Set(S.ppgDone.filter(d => d >= w.start && d <= weekEnd(w)))].length;
+function expressCard(){ const t = todayIso(), w = curWeek(); if (!w || w.pre || S.ppgDone.includes(t)) return '';
+  const ef = ALL.find(s => s.date === t && isDone(s) && ['EF','EFD'].includes(mainZone(s))); if (!ef) return '';
+  const n = Math.min(w.ppg.length, ppgWeekDone(w));
+  return `<button class="card row" style="text-align:left;border:2px solid ${C.pink}" onclick="V.routine='P0';tReset(true);go('ppg')">
+    <span class="kdot" style="background:${C.pink}">${ico('zap',20)}</span>
+    <span style="flex:1;min-width:0"><span class="mono" style="color:${C.pink};display:block">Après ton EF</span>
+    <span style="font-weight:700;display:block">PPG express · 10 min</span><span class="muted" style="font-size:12.5px">PPG ${n}/${w.ppg.length} cette semaine · élastique + espalier</span></span>${ico('next')}</button>`; }
 function mobHomeView(){
   const n = mobLib().length, nr = Object.values(ROUT).filter(r=>r.mob).length;
   return `<div><div class="anton h1">Mobilité</div><div class="muted" style="font-size:12.5px;margin-top:5px">${nr} routines · ${n} mouvements · choisis un groupe</div></div>
@@ -2367,7 +2384,7 @@ function bilanText(w){
   for (const a of extra) if (a.zones){ zt += a.zones.reduce((x,y)=>x+y,0); z12t += a.zones[0]+a.zones[1]; }
   L.push('');
   if (zt) L.push(`Temps sous 150 bpm (SV1) sur la semaine : ${Math.round(z12t/zt*100)} % (cible du plan : environ 80 %)`);
-  const ppg = w.ppg.filter(p => S.ppgDone.includes(p.date)).length; if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
+  const ppg = Math.min(w.ppg.length, ppgWeekDone(w)); if (w.ppg.length) L.push(`PPG : ${ppg}/${w.ppg.length}`);
   const mob = (S.mobDone||[]).filter(x => inWeek(x.slice(0,10), w)).length; if (mob) L.push(`Mobilité : ${mob} séance(s)`);
   const nd = w.sessions.filter(x => isDone(x) && actOf(x.code) && !actOf(x.code).det).length; if (nd) L.push(`Détail seconde par seconde absent pour ${nd} sortie(s) (sorties récupérées avant la v4.17 ou importées en .fit)${(()=>{ const g=ivCode()&&ivState().detDiag; return g?` · dernière lecture Intervals ${new Date(g.at).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} : ${g.err?'échec ('+g.err+')':g.det+'/'+g.n+' sortie(s) avec détail'+(g.sk?', flux : '+g.sk:'')}`:' · pas encore de lecture Intervals depuis la v4.17'; })()}`);
   L.push(EF_REAL ? `Allure EF réelle : ${fmtPace(EF_REAL.p)}/km (médiane de ${EF_REAL.n} sorties EF sur 5 semaines), utilisée pour les km prévus` : 'Allure EF réelle : pas assez de sorties EF détaillées (3 minimum), km prévus estimés sur la VC');
