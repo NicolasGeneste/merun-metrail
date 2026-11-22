@@ -290,7 +290,7 @@ function readFitField(view, pos, baseType, size, littleEndian) {
    (donnees, ressenti + mood, pourquoi), plan adaptatif, onglet Objectif (temps, regularite,
    volume, cycles), onglet Profil (radar 6 axes, confiance), visuel "Ma semaine" partageable.
    ================================================================ */
-const APP_VERSION = 'v4.19.0';
+const APP_VERSION = 'v4.19.1';
 const STORE = 'merun_v3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1447,13 +1447,15 @@ function hexLattice(L, box, each){
     const c0 = Math.floor(-L.ox/(HX_W*s))-1, c1 = Math.ceil((box.w-L.ox)/(HX_W*s))+1;
     for (let c=c0; c<=c1; c++) each(L.ox+(c*HX_W+off)*s, y); }
 }
+window.openWeek = n => { V.week = n; go('plan'); window.scrollTo && window.scrollTo(0,0); };
 function hexTrailSVG(area, box, id='hx'){
   const L = hexLayout(area), s = L.s;
   let out = `<defs><filter id="${id}g" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="${(s*.28).toFixed(1)}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
   hexLattice(L, box, (x,y)=>{ out += `<polygon points="${ptsStr(hexPts(x,y,s*.92))}" fill="none" stroke="#9aa3b2" stroke-opacity=".08"/>`; });
   for (const c of L.cs){ const [f,st,tc] = HX_COL[c.st], glow = c.st==='done'||c.st==='cur';
-    out += `<g${glow?` filter="url(#${id}g)"`:''}${c.st==='cur'?' class="hxcur"':''}><polygon points="${ptsStr(hexPts(c.px,c.py,s*.88))}" fill="${f}" stroke="${c.tag?C.amber:st}" stroke-width="${c.tag?3:1.5}"/></g>`;
-    out += `<text x="${c.px.toFixed(1)}" y="${(c.py+s*.2).toFixed(1)}" text-anchor="middle" fill="${c.tag&&c.st==='fut'?C.amber:tc}" style="font:400 ${(s*(c.tag?.48:.56)).toFixed(1)}px Anton">${c.tag||wNo(c.w)}</text>`; }
+    /* v4.19.1 : chaque dalle est tactile et ouvre la semaine dans Seances */
+    out += `<g style="cursor:pointer" role="button" tabindex="0" aria-label="Semaine ${wNo(c.w)}${c.tag?' · '+c.tag:''}" onclick="event.stopPropagation();openWeek(${c.w.num})"><g${glow?` filter="url(#${id}g)"`:''}${c.st==='cur'?' class="hxcur"':''}><polygon points="${ptsStr(hexPts(c.px,c.py,s*.88))}" fill="${f}" stroke="${c.tag?C.amber:st}" stroke-width="${c.tag?3:1.5}"/></g>`;
+    out += `<text x="${c.px.toFixed(1)}" y="${(c.py+s*.2).toFixed(1)}" text-anchor="middle" fill="${c.tag&&c.st==='fut'?C.amber:tc}" style="font:400 ${(s*(c.tag?.48:.56)).toFixed(1)}px Anton;pointer-events:none">${c.tag||wNo(c.w)}</text></g>`; }
   return out;
 }
 function drawHexTrail(g, area, box){
